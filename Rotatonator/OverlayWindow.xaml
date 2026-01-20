@@ -60,7 +60,7 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     
-                                    <TextBlock Text="{Binding HealerName}" 
+                                    <TextBlock Text="{Binding DisplayName}" 
                                                FontSize="13" 
                                                FontWeight="Bold"
                                                Foreground="{Binding TextColor}"/>

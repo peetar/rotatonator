@@ -69,15 +69,17 @@ namespace Rotatonator
             }
         }
 
-        public void OnHealCast(string healerName)
+        public void OnHealCast(string healerName, string targetName = "")
         {
             var castTime = DateTime.Now;
-            bool isPlayerCast = healerName.Equals(Config.PlayerName, StringComparison.OrdinalIgnoreCase);
+            bool isPlayerCast = !string.IsNullOrWhiteSpace(Config.PlayerName) && 
+                               healerName.Equals(Config.PlayerName, StringComparison.OrdinalIgnoreCase);
 
             // Raise event for UI update
             HealCastDetected?.Invoke(this, new HealCastEventArgs
             {
                 HealerName = healerName,
+                TargetName = targetName,
                 CastTime = castTime,
                 IsPlayerCast = isPlayerCast
             });
@@ -85,8 +87,11 @@ namespace Rotatonator
             lastCastTime = castTime;
             lastCaster = healerName;
 
-            // Calculate when player should cast next
-            CalculatePlayerTurn(healerName, castTime);
+            // Calculate when player should cast next (only if player name is set)
+            if (!string.IsNullOrWhiteSpace(Config.PlayerName))
+            {
+                CalculatePlayerTurn(healerName, castTime);
+            }
         }
 
         private void CalculatePlayerTurn(string currentCaster, DateTime castTime)
@@ -105,43 +110,73 @@ namespace Rotatonator
 
             if (playerIsNext)
             {
+                // Player is next! Beep after the chain interval
+                var timeUntilPlayerTurn = Config.ChainInterval;
+                
+                Console.WriteLine($"[RotationManager] YOU'RE NEXT! Time until your cast: {timeUntilPlayerTurn.TotalSeconds:F1}s");
+                
                 // Show "YOU'RE NEXT" warning immediately
                 PlayerTurnStarting?.Invoke(this, new PlayerTurnEventArgs
                 {
                     TimeUntilCast = Config.ChainInterval
                 });
                 
-                // Player is next! Beep after the chain interval
-                var timeUntilPlayerTurn = Config.ChainInterval;
+                Console.WriteLine($"[RotationManager] Starting timer for {timeUntilPlayerTurn.TotalSeconds}s");
                 
-                System.Diagnostics.Debug.WriteLine($"Player is next! Will beep in {timeUntilPlayerTurn.TotalSeconds} seconds");
-                
-                playerTurnTimer?.Stop();
-                playerTurnTimer = new DispatcherTimer
+                // Ensure timer is created on the UI thread
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
-                    Interval = timeUntilPlayerTurn
-                };
-                playerTurnTimer.Tick += (s, e) =>
-                {
-                    playerTurnTimer.Stop();
-                    System.Diagnostics.Debug.WriteLine("Timer fired! Playing beep now...");
-                    OnPlayerTurn();
-                };
-                playerTurnTimer.Start();
+                    playerTurnTimer?.Stop();
+                    playerTurnTimer = new DispatcherTimer
+                    {
+                        Interval = timeUntilPlayerTurn
+                    };
+                    playerTurnTimer.Tick += (s, e) =>
+                    {
+                        playerTurnTimer.Stop();
+                        Console.WriteLine("[RotationManager] Timer fired! Your turn to cast now!");
+                        OnPlayerTurn();
+                    };
+                    Console.WriteLine("[RotationManager] Timer created and starting...");
+                    playerTurnTimer.Start();
+                    Console.WriteLine($"[RotationManager] Timer started. IsEnabled: {playerTurnTimer.IsEnabled}");
+                });
             }
         }
 
         private void OnPlayerTurn()
         {
-            System.Diagnostics.Debug.WriteLine("OnPlayerTurn called!");
+            Console.WriteLine("[RotationManager] OnPlayerTurn called!");
             
             // Trigger visual alert (red flash)
             PlayerTurnNow?.Invoke(this, EventArgs.Empty);
 
+            // Audio alert when it's your turn to cast
+            if (Config.EnableAudioBeep)
+            {
+                Console.WriteLine("[RotationManager] Playing audio alert for your turn");
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        Console.Beep(800, 100); // Higher pitch, 100ms duration for "your turn" alert
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RotationManager] Beep failed: {ex.Message}");
+                    }
+                });
+            }
+
             // Auto-cast
             if (Config.EnableAutoCast)
             {
+                Console.WriteLine($"[RotationManager] Auto-cast enabled, sending hotkey: {Config.CastHotkey}");
                 SendKeystroke(Config.CastHotkey);
+            }
+            else
+            {
+                Console.WriteLine("[RotationManager] Auto-cast is disabled");
             }
         }
 
@@ -149,10 +184,12 @@ namespace Rotatonator
         {
             try
             {
+                Console.WriteLine($"[RotationManager] Calling KeyboardAutomation.SendKey('{key}')");
                 KeyboardAutomation.SendKey(key);
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[RotationManager] Error sending keystroke: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Error sending keystroke: {ex.Message}");
             }
         }
@@ -161,6 +198,7 @@ namespace Rotatonator
     public class HealCastEventArgs : EventArgs
     {
         public string HealerName { get; set; } = "";
+        public string TargetName { get; set; } = "";
         public DateTime CastTime { get; set; }
         public bool IsPlayerCast { get; set; }
     }

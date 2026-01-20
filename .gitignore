@@ -6,6 +6,9 @@ obj/
 *.cache
 *.log
 
+# Release packages
+*.zip
+
 # Visual Studio
 .vs/
 *.userprefs

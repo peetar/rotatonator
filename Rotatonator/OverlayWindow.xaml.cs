@@ -92,7 +92,7 @@ namespace Rotatonator
                     {
                         System.Threading.Tasks.Task.Run(() =>
                         {
-                            PlayBeep(600, 100, 0.5f);
+                            PlayBeep(600, 50, 0.25f);
                         });
                     }
                     catch
@@ -120,9 +120,12 @@ namespace Rotatonator
                 var viewModel = new HealTimerViewModel
                 {
                     HealerName = e.HealerName,
+                    TargetName = e.TargetName,
                     CastTime = e.CastTime,
                     TotalTime = 10.0, // Complete Heal cast time is ~10 seconds
-                    IsPlayerCast = e.IsPlayerCast
+                    IsPlayerCast = e.IsPlayerCast,
+                    ChainDelay = rotationManager.Config.ChainInterval,
+                    IsInRecastDelay = true // Starts in recast delay
                 };
 
                 activeHeals.Add(viewModel);
@@ -203,6 +206,9 @@ namespace Rotatonator
                 {
                     heal.TimeRemaining = $"{remaining.TotalSeconds:F1}s";
                     heal.ProgressValue = elapsed.TotalSeconds;
+                    
+                    // Check if this healer is still in recast delay
+                    heal.IsInRecastDelay = elapsed < heal.ChainDelay;
                 }
             }
         }
@@ -250,11 +256,14 @@ namespace Rotatonator
     {
         private string timeRemaining = "10.0s";
         private double progressValue = 0;
+        private bool isInRecastDelay = false;
 
         public string HealerName { get; set; } = "";
+        public string TargetName { get; set; } = "";
         public DateTime CastTime { get; set; }
         public double TotalTime { get; set; }
         public bool IsPlayerCast { get; set; }
+        public TimeSpan ChainDelay { get; set; } = TimeSpan.FromSeconds(6);
 
         public string TimeRemaining
         {
@@ -276,13 +285,48 @@ namespace Rotatonator
             }
         }
 
+        public bool IsInRecastDelay
+        {
+            get => isInRecastDelay;
+            set
+            {
+                isInRecastDelay = value;
+                OnPropertyChanged(nameof(IsInRecastDelay));
+                OnPropertyChanged(nameof(BarColor));
+            }
+        }
+
         public Brush TextColor => IsPlayerCast 
             ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) 
             : Brushes.White;
 
-        public Brush BarColor => IsPlayerCast
-            ? new SolidColorBrush(Color.FromRgb(76, 175, 80))
-            : new SolidColorBrush(Color.FromRgb(33, 150, 243));
+        public Brush BarColor
+        {
+            get
+            {
+                // Red while in recast delay
+                if (IsInRecastDelay)
+                {
+                    return new SolidColorBrush(Color.FromRgb(220, 53, 69)); // Red
+                }
+                // Normal colors once recast delay is over
+                return IsPlayerCast
+                    ? new SolidColorBrush(Color.FromRgb(76, 175, 80))  // Green for player
+                    : new SolidColorBrush(Color.FromRgb(33, 150, 243)); // Blue for others
+            }
+        }
+
+        public string DisplayName
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(TargetName))
+                {
+                    return $"{HealerName} → {TargetName}";
+                }
+                return HealerName;
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

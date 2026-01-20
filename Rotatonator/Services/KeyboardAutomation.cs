@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Rotatonator
 {
@@ -15,8 +16,22 @@ namespace Rotatonator
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
         private const uint KEYEVENTF_KEYDOWN = 0x0000;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const uint WM_KEYDOWN = 0x0100;
+        private const uint WM_KEYUP = 0x0101;
 
         public static void SendKey(string key)
         {
@@ -24,10 +39,72 @@ namespace Rotatonator
             byte vk = GetVirtualKeyCode(key);
             if (vk == 0) return;
 
-            // Simulate key press
-            keybd_event(vk, 0, KEYEVENTF_KEYDOWN, UIntPtr.Zero);
-            Thread.Sleep(50);
-            keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            // Try multiple approaches to send the keypress
+            IntPtr eqWindow = FindEverQuestWindow();
+            
+            if (eqWindow != IntPtr.Zero)
+            {
+                // Approach 1: Try PostMessage (background input)
+                Console.WriteLine($"[AutoCast] Sending key {key} (VK: {vk}) to EQ window via PostMessage");
+                PostMessage(eqWindow, WM_KEYDOWN, (IntPtr)vk, IntPtr.Zero);
+                Thread.Sleep(50);
+                PostMessage(eqWindow, WM_KEYUP, (IntPtr)vk, IntPtr.Zero);
+                
+                // Approach 2: Try bringing EQ to foreground and using keybd_event
+                Thread.Sleep(100);
+                IntPtr previousWindow = GetForegroundWindow();
+                SetForegroundWindow(eqWindow);
+                Thread.Sleep(50);
+                
+                keybd_event(vk, 0, KEYEVENTF_KEYDOWN, UIntPtr.Zero);
+                Thread.Sleep(50);
+                keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                
+                // Restore previous window after a short delay
+                Thread.Sleep(100);
+                if (previousWindow != IntPtr.Zero)
+                {
+                    SetForegroundWindow(previousWindow);
+                }
+            }
+            else
+            {
+                // Fallback: Just send to foreground window
+                Console.WriteLine($"[AutoCast] EQ window not found, sending to foreground window");
+                keybd_event(vk, 0, KEYEVENTF_KEYDOWN, UIntPtr.Zero);
+                Thread.Sleep(50);
+                keybd_event(vk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+        }
+
+        private static IntPtr FindEverQuestWindow()
+        {
+            // Try to find EverQuest window by searching all processes
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (process.MainWindowHandle != IntPtr.Zero)
+                    {
+                        var windowText = new System.Text.StringBuilder(256);
+                        GetWindowText(process.MainWindowHandle, windowText, 256);
+                        string title = windowText.ToString();
+                        
+                        if (title.Contains("EverQuest", StringComparison.OrdinalIgnoreCase) ||
+                            process.ProcessName.Contains("eqgame", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Console.WriteLine($"[AutoCast] Found EQ window: {title} (Process: {process.ProcessName})");
+                            return process.MainWindowHandle;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Skip processes we can't access
+                }
+            }
+            
+            return IntPtr.Zero;
         }
 
         private static byte GetVirtualKeyCode(string key)

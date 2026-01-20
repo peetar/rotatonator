@@ -18,26 +18,58 @@ namespace Rotatonator
         {
             InitializeComponent();
             
-            // Try to find EQ log directory
-            string defaultLogPath = FindEQLogDirectory();
-            if (!string.IsNullOrEmpty(defaultLogPath))
+            // Load saved settings
+            LoadSavedSettings();
+            
+            // Show anchor by default when overlay checkbox is checked
+            ShowHideAnchor();
+        }
+
+        private void LoadSavedSettings()
+        {
+            var settings = SettingsManager.LoadSettings();
+            
+            // Load log file path
+            if (!string.IsNullOrEmpty(settings.LogFilePath) && File.Exists(settings.LogFilePath))
             {
-                LogFilePathTextBox.Text = defaultLogPath;
-                
-                // Auto-detect character name from log filename
-                string filename = Path.GetFileNameWithoutExtension(defaultLogPath);
+                LogFilePathTextBox.Text = settings.LogFilePath;
+            }
+            else
+            {
+                // Try to find EQ log directory if no saved path
+                string defaultLogPath = FindEQLogDirectory();
+                if (!string.IsNullOrEmpty(defaultLogPath))
+                {
+                    LogFilePathTextBox.Text = defaultLogPath;
+                }
+            }
+            
+            // Auto-detect character name from log filename if not saved
+            if (!string.IsNullOrEmpty(LogFilePathTextBox.Text))
+            {
+                string filename = Path.GetFileNameWithoutExtension(LogFilePathTextBox.Text);
                 if (filename.StartsWith("eqlog_", StringComparison.OrdinalIgnoreCase))
                 {
                     string[] parts = filename.Substring(6).Split('_');
                     if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
                     {
-                        PlayerNameTextBox.Text = parts[0];
+                        PlayerNameTextBox.Text = string.IsNullOrEmpty(settings.PlayerName) ? parts[0] : settings.PlayerName;
                     }
                 }
             }
             
-            // Show anchor by default when overlay checkbox is checked
-            ShowHideAnchor();
+            // Load other settings
+            if (!string.IsNullOrEmpty(settings.PlayerName))
+                PlayerNameTextBox.Text = settings.PlayerName;
+            
+            if (!string.IsNullOrEmpty(settings.ChainHealers))
+                ChainHealersTextBox.Text = settings.ChainHealers;
+            
+            ChainPrefixTextBox.Text = settings.ChainPrefix;
+            ChainIntervalSlider.Value = settings.ChainInterval;
+            ShowOverlayCheckBox.IsChecked = settings.ShowOverlay;
+            VisualAlertsCheckBox.IsChecked = settings.EnableVisualAlerts;
+            AudioBeepCheckBox.IsChecked = settings.EnableAudioBeep;
         }
 
         private string FindEQLogDirectory()
@@ -246,6 +278,9 @@ namespace Rotatonator
 
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
+            // Check if we're refreshing settings vs starting fresh
+            bool isRefresh = rotationManager != null && logMonitor != null;
+
             // Validate inputs
             if (string.IsNullOrWhiteSpace(LogFilePathTextBox.Text) || !File.Exists(LogFilePathTextBox.Text))
             {
@@ -256,12 +291,6 @@ namespace Rotatonator
             if (string.IsNullOrWhiteSpace(ChainHealersTextBox.Text))
             {
                 MessageBox.Show("Please enter healer names for the rotation chain.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(PlayerNameTextBox.Text))
-            {
-                MessageBox.Show("Please enter your character name.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -279,15 +308,10 @@ namespace Rotatonator
             }
 
             string playerName = PlayerNameTextBox.Text.Trim();
-            if (!healers.Contains(playerName, StringComparer.OrdinalIgnoreCase))
-            {
-                MessageBox.Show("Your character name must be in the healer list.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+            // Player name is optional - tanks/raid leaders can monitor without being in chain
 
             try
             {
-                // Create rotation manager
                 var config = new RotationConfig
                 {
                     Healers = healers,
@@ -300,6 +324,30 @@ namespace Rotatonator
                     CastHotkey = HotkeyTextBox.Text
                 };
 
+                if (isRefresh)
+                {
+                    // Update existing rotation manager config (we know it's not null because isRefresh checks this)
+                    rotationManager!.Config.Healers = config.Healers;
+                    rotationManager.Config.PlayerName = config.PlayerName;
+                    rotationManager.Config.ChainPrefix = config.ChainPrefix;
+                    rotationManager.Config.ChainInterval = config.ChainInterval;
+                    rotationManager.Config.EnableVisualAlerts = config.EnableVisualAlerts;
+                    rotationManager.Config.EnableAudioBeep = config.EnableAudioBeep;
+                    rotationManager.Config.EnableAutoCast = config.EnableAutoCast;
+                    rotationManager.Config.CastHotkey = config.CastHotkey;
+
+                    // Save settings
+                    SaveCurrentSettings();
+
+                    // Update overlay if it exists
+                    overlayWindow?.UpdateChainInfo();
+
+                    StatusTextBlock.Text = $"Settings refreshed. Position in chain: {rotationManager.GetPlayerPosition() + 1} of {healers.Count}";
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
+                    return;
+                }
+
+                // Create rotation manager (first time start)
                 rotationManager = new RotationManager(config);
 
                 // Subscribe to chain import events
@@ -326,8 +374,11 @@ namespace Rotatonator
                 logMonitor = new LogMonitor(LogFilePathTextBox.Text, rotationManager);
                 logMonitor.Start();
 
-                // Update UI
-                StartButton.IsEnabled = false;
+                // Save settings
+                SaveCurrentSettings();
+
+                StartButton.Content = "Refresh Settings";
+                StartButton.IsEnabled = true;
                 StopButton.IsEnabled = true;
                 StatusTextBlock.Text = $"Monitoring active. Position in chain: {rotationManager.GetPlayerPosition() + 1} of {healers.Count}";
                 StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
@@ -357,6 +408,7 @@ namespace Rotatonator
 
             rotationManager = null;
 
+            StartButton.Content = "Start Monitoring";
             StartButton.IsEnabled = true;
             StopButton.IsEnabled = false;
             StatusTextBlock.Text = "Monitoring stopped.";
@@ -381,12 +433,32 @@ namespace Rotatonator
                 ChainHealersTextBox.Text = string.Join(Environment.NewLine, e.Healers);
                 ChainIntervalSlider.Value = e.Delay;
                 
+                // Save imported settings
+                SaveCurrentSettings();
+                
                 StatusTextBlock.Text = $"Chain imported! {e.Healers.Count} healers, {e.Delay}s interval. Monitoring restarted.";
                 StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
                 
                 // Update overlay if it exists
                 overlayWindow?.UpdateChainInfo();
             });
+        }
+
+        private void SaveCurrentSettings()
+        {
+            var settings = new AppSettings
+            {
+                LogFilePath = LogFilePathTextBox.Text,
+                PlayerName = PlayerNameTextBox.Text,
+                ChainHealers = ChainHealersTextBox.Text,
+                ChainPrefix = ChainPrefixTextBox.Text,
+                ChainInterval = ChainIntervalSlider.Value,
+                ShowOverlay = ShowOverlayCheckBox.IsChecked ?? true,
+                EnableVisualAlerts = VisualAlertsCheckBox.IsChecked ?? true,
+                EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false
+            };
+            
+            SettingsManager.SaveSettings(settings);
         }
     }
 }
