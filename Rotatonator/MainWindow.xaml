@@ -1,0 +1,153 @@
+<Window x:Class="Rotatonator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rotatonator - EQ Complete Heal Chain Manager" 
+        Height="800" Width="650"
+        ResizeMode="CanResize"
+        Background="#2C2C2C">
+    <Window.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,5"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+    
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Log File Selection -->
+        <GroupBox Grid.Row="0" Header="EverQuest Log File" Foreground="White" Margin="0,0,0,15" Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="LogFilePathTextBox" IsReadOnly="True" Grid.Column="0"/>
+                <Button x:Name="BrowseLogButton" Content="Browse..." Grid.Column="1" Click="BrowseLogButton_Click"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Chain Configuration -->
+        <GroupBox Grid.Row="1" Header="Chain Configuration" Foreground="White" Margin="0,0,0,15" Padding="10">
+            <StackPanel>
+                <Label Content="Chain Prefix (e.g., 'D&amp;D' or 'CHCHAIN'):"/>
+                <TextBox x:Name="ChainPrefixTextBox" Text="D&amp;D"/>
+                
+                <Label Content="Healer Names (one per line, in rotation order):" Margin="0,10,0,0"/>
+                <TextBox x:Name="ChainHealersTextBox" 
+                         Height="100" 
+                         AcceptsReturn="True" 
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="Healer1&#x0a;Healer2&#x0a;Healer3&#x0a;Healer4"/>
+                
+                <Button x:Name="ExportChainButton" 
+                        Content="Export Chain to Clipboard" 
+                        Click="ExportChainButton_Click"
+                        Margin="0,5,0,0"
+                        HorizontalAlignment="Stretch"/>
+                
+                <Button x:Name="ExportCHStringButton" 
+                        Content="Export CH String to Clipboard" 
+                        Click="ExportCHStringButton_Click"
+                        Margin="0,5,0,0"
+                        HorizontalAlignment="Stretch"/>
+                
+                <Label Content="Your Character Name:" Margin="0,10,0,0"/>
+                <TextBox x:Name="PlayerNameTextBox" Text=""/>
+                
+                <TextBlock Foreground="#AAAAAA" FontSize="10" Margin="0,10,0,0" TextWrapping="Wrap">
+                    Example: If you're #3 in chain with prefix "D&amp;D", type in game: /say D&amp;D 333 CH
+                </TextBlock>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Timing Configuration -->
+        <GroupBox Grid.Row="2" Header="Timing" Foreground="White" Margin="0,0,0,15" Padding="10">
+            <StackPanel>
+                <Label Content="Chain Interval (seconds between heals):"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider x:Name="ChainIntervalSlider" 
+                            Minimum="1" 
+                            Maximum="10" 
+                            Value="6" 
+                            TickFrequency="1" 
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ChainIntervalSlider_ValueChanged"/>
+                    <TextBlock x:Name="ChainIntervalLabel" 
+                               Grid.Column="1" 
+                               Text="6.0s" 
+                               Foreground="White" 
+                               FontSize="14" 
+                               FontWeight="Bold"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Features -->
+        <GroupBox Grid.Row="3" Header="Features" Foreground="White" Margin="0,0,0,15" Padding="10">
+            <StackPanel>
+                <CheckBox x:Name="ShowOverlayCheckBox" Content="Show Overlay Window" IsChecked="True" Checked="ShowOverlayCheckBox_Changed" Unchecked="ShowOverlayCheckBox_Changed"/>
+                <CheckBox x:Name="VisualAlertsCheckBox" Content="Visual Alerts (flash overlay when your turn approaches)" IsChecked="True"/>
+                <CheckBox x:Name="AudioBeepCheckBox" Content="Audio Beep (beep when any CH is cast)" IsChecked="False"/>
+                <CheckBox x:Name="AutoCastCheckBox" Content="Auto-Cast (send keypress on your turn)"/>
+                
+                <StackPanel Orientation="Horizontal" Margin="20,5,0,0">
+                    <Label Content="Hotkey:" Margin="0"/>
+                    <TextBox x:Name="HotkeyTextBox" Width="50" Text="1" IsEnabled="{Binding IsChecked, ElementName=AutoCastCheckBox}"/>
+                    <Label Content="(key to press for CH spell)" Margin="5,0,0,0"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Control Buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
+            <Button x:Name="StartButton" Content="Start Monitoring" Width="150" Click="StartButton_Click"/>
+            <Button x:Name="StopButton" Content="Stop" Width="150" IsEnabled="False" Click="StopButton_Click" Background="#F44336"/>
+        </StackPanel>
+
+        <!-- Status -->
+        <GroupBox Grid.Row="5" Header="Status" Foreground="White" Margin="0,15,0,0" Padding="10">
+            <TextBlock x:Name="StatusTextBlock" 
+                       Foreground="#4CAF50" 
+                       Text="Ready to start. Configure settings above and click Start Monitoring."
+                       TextWrapping="Wrap"/>
+        </GroupBox>
+        </Grid>
+    </ScrollViewer>
+</Window>
