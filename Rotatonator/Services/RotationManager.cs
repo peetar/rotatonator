@@ -34,15 +34,15 @@ namespace Rotatonator
         {
             try
             {
-                // Parse chain data: "111 Name1, 222 Name2, 333 Name3"
+                // Parse chain data: "111 Name1, 222 Name2, 333 Name3, AAA Name10, BBB Name11"
                 var healers = new List<string>();
                 var parts = chainData.Split(',');
                 
                 foreach (var part in parts)
                 {
                     var trimmed = part.Trim();
-                    // Match pattern like "111 Healer1" or "22 Healer2"
-                    var match = Regex.Match(trimmed, @"^\d+\s+(.+)$");
+                    // Match pattern like "111 Healer1" or "AAA Healer10"
+                    var match = Regex.Match(trimmed, @"^[\d\w]+\s+(.+)$");
                     if (match.Success)
                     {
                         healers.Add(match.Groups[1].Value.Trim());

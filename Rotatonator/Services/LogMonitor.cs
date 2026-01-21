@@ -31,11 +31,12 @@ namespace Rotatonator
         public void Start()
         {
             // Build regex pattern for detecting CH rotation messages
-            // Pattern: [timestamp] <any text>, 'PREFIX (\d)\1* CH - TARGET - ...'
+            // Pattern: [timestamp] <any text>, 'PREFIX (POS) CH - TARGET - ...'
+            // POS can be: 111-999 (positions 1-9) or AAA-ZZZ (positions 10-35)
             // Matches: says, tells the raid, shouts, tells the guild, auctions, etc.
-            // Example: "D&D 333 CH - Crunchzilla - 100%" where 3 repeated 3 times = position 3, Crunchzilla = target
+            // Example: "D&D 333 CH - Crunchzilla - 100%" or "D&D AAA CH - Target - 100%"
             string escapedPrefix = Regex.Escape(rotationManager.Config.ChainPrefix);
-            string pattern = $@"^\[.*?\]\s+.+?,\s+'" + escapedPrefix + @"\s+(\d)\1*\s+CH(?:\s+-\s+([^-]+))?";
+            string pattern = $@"^\[.*?\]\s+.+?,\s+'" + escapedPrefix + @"\s+(\d+|[A-Za-z]+)\s+CH(?:\s+-\s+([^-]+))?";
             chainMessageRegex = new Regex(pattern, RegexOptions.Compiled | RegexOptions.IgnoreCase);
             
             // Build regex for detecting chain import messages
@@ -117,19 +118,21 @@ namespace Rotatonator
             
             if (chainMessageRegex == null) return;
             
-            // Check for CH rotation message (e.g., "D&D 333 CH - Crunchzilla - 100%")
+            // Check for CH rotation message (e.g., "D&D 333 CH - Crunchzilla - 100%" or "D&D AAA CH - Target - 100%")
             var match = chainMessageRegex.Match(line);
             if (match.Success)
             {
-                // Extract the repeated digit to determine position
-                string digitStr = match.Groups[1].Value;
+                // Extract the position string (111, 222, AAA, BBB, etc.)
+                string positionStr = match.Groups[1].Value;
                 string targetName = match.Groups.Count > 2 && match.Groups[2].Success 
                     ? match.Groups[2].Value.Trim() 
                     : "";
                 
-                if (int.TryParse(digitStr, out int position))
+                int position = PositionHelper.StringToPosition(positionStr);
+                
+                if (position > 0)
                 {
-                    // Position is 1-indexed, but list is 0-indexed
+                    // Valid position - look up healer name
                     int healerIndex = position - 1;
                     
                     string healerName;
@@ -139,10 +142,16 @@ namespace Rotatonator
                     }
                     else
                     {
-                        // Invalid position - use the position digits as the healer name
-                        healerName = new string((char)('0' + position), position);
+                        // Invalid position - show the position string itself
+                        healerName = PositionHelper.GetInvalidPositionName(positionStr);
                     }
                     
+                    rotationManager.OnHealCast(healerName, targetName);
+                }
+                else
+                {
+                    // Invalid format - show the position string itself
+                    string healerName = PositionHelper.GetInvalidPositionName(positionStr);
                     rotationManager.OnHealCast(healerName, targetName);
                 }
             }

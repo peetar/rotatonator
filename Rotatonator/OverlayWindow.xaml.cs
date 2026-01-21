@@ -27,6 +27,8 @@ namespace Rotatonator
         private readonly ObservableCollection<HealTimerViewModel> activeHeals;
         private IntPtr hwnd;
         private DispatcherTimer? warningFlashTimer;
+        private DispatcherTimer? castNowResetTimer;
+        private DateTime lastHealTime = DateTime.MinValue;
 
         public OverlayWindow(RotationManager manager)
         {
@@ -79,8 +81,18 @@ namespace Rotatonator
         {
             Dispatcher.Invoke(() =>
             {
+                // Update last heal time
+                lastHealTime = DateTime.Now;
+                
+                // Make sure overlay is visible
+                if (Visibility != Visibility.Visible)
+                    Visibility = Visibility.Visible;
+                
                 // Stop the warning flash timer when any heal is cast
                 warningFlashTimer?.Stop();
+                
+                // Stop the cast now reset timer since a heal was actually cast
+                castNowResetTimer?.Stop();
                 
                 // Reset overlay background to normal when any heal is cast
                 OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
@@ -185,12 +197,36 @@ namespace Rotatonator
                 
                 // Turn overlay solid WHITE and keep it white
                 OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(230, 255, 255, 255));
+                
+                // Set a timer to reset the overlay back to transparent after the cast window
+                // This ensures the overlay returns to normal even if the user doesn't cast
+                castNowResetTimer?.Stop();
+                castNowResetTimer = new DispatcherTimer
+                {
+                    Interval = rotationManager.Config.ChainInterval,
+                    IsEnabled = false
+                };
+                castNowResetTimer.Tick += (s, args) =>
+                {
+                    castNowResetTimer?.Stop();
+                    OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
+                    NextWarningTextBlock.Visibility = Visibility.Collapsed;
+                };
+                castNowResetTimer.Start();
             });
         }
 
         private void UpdateTimer_Tick(object? sender, EventArgs e)
         {
             var now = DateTime.Now;
+            
+            // Check if we should hide the overlay due to inactivity
+            if (lastHealTime != DateTime.MinValue && (now - lastHealTime).TotalSeconds > 30)
+            {
+                if (Visibility == Visibility.Visible)
+                    Visibility = Visibility.Collapsed;
+                return;
+            }
             
             for (int i = activeHeals.Count - 1; i >= 0; i--)
             {
@@ -204,7 +240,9 @@ namespace Rotatonator
                 }
                 else
                 {
-                    heal.TimeRemaining = $"{remaining.TotalSeconds:F1}s";
+                    // Round to nearest 0.5 seconds
+                    double roundedSeconds = Math.Round(remaining.TotalSeconds * 2) / 2;
+                    heal.TimeRemaining = $"{roundedSeconds:F1}s";
                     heal.ProgressValue = elapsed.TotalSeconds;
                     
                     // Check if this healer is still in recast delay

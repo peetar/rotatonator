@@ -153,7 +153,7 @@ namespace Rotatonator
                 for (int i = 0; i < healers.Count; i++)
                 {
                     if (i > 0) chainParts.Append(", ");
-                    string position = new string((char)('1' + i), i + 1); // 1, 22, 333, etc.
+                    string position = PositionHelper.PositionToString(i + 1); // 111, 222, 333, ... AAA, BBB, etc.
                     chainParts.Append($"{position} {healers[i]}");
                 }
 
