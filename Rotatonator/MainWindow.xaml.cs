@@ -13,6 +13,8 @@ namespace Rotatonator
         private LogMonitor? logMonitor;
         private RotationManager? rotationManager;
         private Point overlayPosition = new Point(100, 100);
+        private AudioAlertConfig audioAlertConfig = new AudioAlertConfig();
+        private int currentChainInterval = 6;
 
         public MainWindow()
         {
@@ -66,10 +68,30 @@ namespace Rotatonator
                 ChainHealersTextBox.Text = settings.ChainHealers;
             
             ChainPrefixTextBox.Text = settings.ChainPrefix;
-            ChainIntervalSlider.Value = settings.ChainInterval;
+            currentChainInterval = (int)settings.ChainInterval;
+            UpdateChainIntervalDisplay();
             ShowOverlayCheckBox.IsChecked = settings.ShowOverlay;
             VisualAlertsCheckBox.IsChecked = settings.EnableVisualAlerts;
             AudioBeepCheckBox.IsChecked = settings.EnableAudioBeep;
+            DDRModeCheckBox.IsChecked = settings.EnableDDRMode;
+            
+            // Load audio alert config
+            if (settings.AudioAlerts != null)
+            {
+                audioAlertConfig = settings.AudioAlerts;
+            }
+            
+            // Sync the old audio beep checkbox with the new config location
+            if (settings.AudioAlerts != null)
+            {
+                AudioBeepCheckBox.IsChecked = settings.AudioAlerts.EnableAudioBeep;
+            }
+            else if (settings.EnableAudioBeep)
+            {
+                // Migrate old setting to new location
+                audioAlertConfig.EnableAudioBeep = settings.EnableAudioBeep;
+                AudioBeepCheckBox.IsChecked = settings.EnableAudioBeep;
+            }
         }
 
         private string FindEQLogDirectory()
@@ -124,11 +146,44 @@ namespace Rotatonator
             }
         }
 
-        private void ChainIntervalSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void UpdateChainIntervalDisplay()
         {
             if (ChainIntervalLabel != null)
             {
-                ChainIntervalLabel.Text = $"{e.NewValue:F1}s";
+                ChainIntervalLabel.Text = $"{currentChainInterval}s";
+            }
+        }
+
+        private void DecreaseDelayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentChainInterval > 1)
+            {
+                currentChainInterval--;
+                UpdateChainIntervalDisplay();
+                ExportDelayOnly();
+            }
+        }
+
+        private void IncreaseDelayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentChainInterval < 10)
+            {
+                currentChainInterval++;
+                UpdateChainIntervalDisplay();
+                ExportDelayOnly();
+            }
+        }
+
+        private void ExportDelayOnly()
+        {
+            try
+            {
+                string exportText = $"/rs Rotatonator set_delay: {currentChainInterval}";
+                Clipboard.SetText(exportText);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error exporting delay: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -157,7 +212,7 @@ namespace Rotatonator
                     chainParts.Append($"{position} {healers[i]}");
                 }
 
-                int delay = (int)ChainIntervalSlider.Value;
+                int delay = (int)currentChainInterval;
                 string exportText = $"/rs Rotatonator set_chain: {chainParts}, set_delay: {delay}";
 
                 Clipboard.SetText(exportText);
@@ -228,6 +283,37 @@ namespace Rotatonator
             catch (Exception ex)
             {
                 MessageBox.Show($"Error exporting CH string: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ConfigAudioAlertsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new AudioAlertConfigDialog(audioAlertConfig);
+            if (dialog.ShowDialog() == true)
+            {
+                audioAlertConfig = dialog.Config;
+                
+                // Update rotation manager if it's running
+                if (rotationManager != null)
+                {
+                    rotationManager.Config.AudioAlerts = audioAlertConfig;
+                }
+                
+                SaveCurrentSettings();
+            }
+        }
+
+        private void ResetDDRScoreboardButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (overlayWindow != null)
+            {
+                overlayWindow.ResetDDRScoreboard();
+                StatusTextBlock.Text = "DDR Scoreboard reset!";
+                StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
+            }
+            else
+            {
+                MessageBox.Show("Overlay window is not open. Start monitoring first.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -317,11 +403,13 @@ namespace Rotatonator
                     Healers = healers,
                     PlayerName = playerName,
                     ChainPrefix = ChainPrefixTextBox.Text.Trim(),
-                    ChainInterval = TimeSpan.FromSeconds(ChainIntervalSlider.Value),
+                    ChainInterval = TimeSpan.FromSeconds(currentChainInterval),
                     EnableVisualAlerts = VisualAlertsCheckBox.IsChecked ?? false,
                     EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false,
                     EnableAutoCast = AutoCastCheckBox.IsChecked ?? false,
-                    CastHotkey = HotkeyTextBox.Text
+                    CastHotkey = HotkeyTextBox.Text,
+                    AudioAlerts = audioAlertConfig,
+                    EnableDDRMode = DDRModeCheckBox.IsChecked ?? false
                 };
 
                 if (isRefresh)
@@ -335,6 +423,8 @@ namespace Rotatonator
                     rotationManager.Config.EnableAudioBeep = config.EnableAudioBeep;
                     rotationManager.Config.EnableAutoCast = config.EnableAutoCast;
                     rotationManager.Config.CastHotkey = config.CastHotkey;
+                    rotationManager.Config.AudioAlerts = audioAlertConfig;
+                    rotationManager.Config.EnableDDRMode = DDRModeCheckBox.IsChecked ?? false;
 
                     // Save settings
                     SaveCurrentSettings();
@@ -431,7 +521,8 @@ namespace Rotatonator
             {
                 // Update UI with imported chain
                 ChainHealersTextBox.Text = string.Join(Environment.NewLine, e.Healers);
-                ChainIntervalSlider.Value = e.Delay;
+                currentChainInterval = e.Delay;
+                UpdateChainIntervalDisplay();
                 
                 // Save imported settings
                 SaveCurrentSettings();
@@ -452,10 +543,12 @@ namespace Rotatonator
                 PlayerName = PlayerNameTextBox.Text,
                 ChainHealers = ChainHealersTextBox.Text,
                 ChainPrefix = ChainPrefixTextBox.Text,
-                ChainInterval = ChainIntervalSlider.Value,
+                ChainInterval = currentChainInterval,
                 ShowOverlay = ShowOverlayCheckBox.IsChecked ?? true,
                 EnableVisualAlerts = VisualAlertsCheckBox.IsChecked ?? true,
-                EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false
+                EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false,
+                AudioAlerts = audioAlertConfig,
+                EnableDDRMode = DDRModeCheckBox.IsChecked ?? false
             };
             
             SettingsManager.SaveSettings(settings);

@@ -13,6 +13,7 @@ namespace Rotatonator
         private DateTime? lastCastTime;
         private string? lastCaster;
         private DispatcherTimer? playerTurnTimer;
+        private DateTime? nextExpectedCastTime; // Track when the next heal should happen
 
         public event EventHandler<HealCastEventArgs>? HealCastDetected;
         public event EventHandler<PlayerTurnEventArgs>? PlayerTurnStarting;
@@ -69,11 +70,53 @@ namespace Rotatonator
             }
         }
 
+        public void OnDelayOnlyImport(int delay)
+        {
+            try
+            {
+                // Update only the chain interval, keep the existing healers
+                Config.ChainInterval = TimeSpan.FromSeconds(delay);
+                
+                // Notify that delay was imported
+                ChainImported?.Invoke(this, new ChainImportEventArgs
+                {
+                    Healers = Config.Healers,
+                    Delay = delay
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing delay-only import: {ex.Message}");
+            }
+        }
+
         public void OnHealCast(string healerName, string targetName = "")
         {
             var castTime = DateTime.Now;
             bool isPlayerCast = !string.IsNullOrWhiteSpace(Config.PlayerName) && 
                                healerName.Equals(Config.PlayerName, StringComparison.OrdinalIgnoreCase);
+
+            // Find healer position in chain (1-based)
+            int healerPosition = Config.Healers.FindIndex(h => 
+                h.Equals(healerName, StringComparison.OrdinalIgnoreCase)) + 1;
+
+            // Calculate expected cast time for DDR mode
+            DateTime? expectedCastTime = nextExpectedCastTime;
+            
+            // Check if this heal should be skipped for DDR scoring
+            // Skip if within 1 second of another heal OR more than 10 seconds after previous heal
+            bool skipDDRScoring = false;
+            if (lastCastTime.HasValue)
+            {
+                var timeSinceLastHeal = (castTime - lastCastTime.Value).TotalSeconds;
+                if (timeSinceLastHeal < 1.0 || timeSinceLastHeal > 10.0)
+                {
+                    skipDDRScoring = true;
+                }
+            }
+            
+            // Update next expected cast time
+            nextExpectedCastTime = castTime + Config.ChainInterval;
 
             // Raise event for UI update
             HealCastDetected?.Invoke(this, new HealCastEventArgs
@@ -81,7 +124,10 @@ namespace Rotatonator
                 HealerName = healerName,
                 TargetName = targetName,
                 CastTime = castTime,
-                IsPlayerCast = isPlayerCast
+                IsPlayerCast = isPlayerCast,
+                HealerPosition = healerPosition,
+                ExpectedCastTime = expectedCastTime, // May be null for first cast
+                SkipDDRScoring = skipDDRScoring
             });
 
             lastCastTime = castTime;
@@ -201,6 +247,9 @@ namespace Rotatonator
         public string TargetName { get; set; } = "";
         public DateTime CastTime { get; set; }
         public bool IsPlayerCast { get; set; }
+        public int HealerPosition { get; set; } // 1-based position in chain
+        public DateTime? ExpectedCastTime { get; set; } // When this heal should have happened (for DDR mode)
+        public bool SkipDDRScoring { get; set; } // Skip DDR scoring if heal is out of normal chain timing
     }
 
     public class PlayerTurnEventArgs : EventArgs

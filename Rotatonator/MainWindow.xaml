@@ -98,24 +98,31 @@
                 <Label Content="Chain Interval (seconds between heals):"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Slider x:Name="ChainIntervalSlider" 
-                            Minimum="1" 
-                            Maximum="10" 
-                            Value="6" 
-                            TickFrequency="1" 
-                            IsSnapToTickEnabled="True"
-                            ValueChanged="ChainIntervalSlider_ValueChanged"/>
+                    <Button x:Name="DecreaseDelayButton" 
+                            Content="−" 
+                            Width="40"
+                            Click="DecreaseDelayButton_Click"
+                            Background="#FF9800"/>
                     <TextBlock x:Name="ChainIntervalLabel" 
                                Grid.Column="1" 
-                               Text="6.0s" 
+                               Text="6s" 
                                Foreground="White" 
                                FontSize="14" 
                                FontWeight="Bold"
-                               Margin="10,0,0,0"
-                               VerticalAlignment="Center"/>
+                               Margin="15,0,15,0"
+                               VerticalAlignment="Center"
+                               MinWidth="40"
+                               TextAlignment="Center"/>
+                    <Button x:Name="IncreaseDelayButton" 
+                            Content="+" 
+                            Width="40"
+                            Grid.Column="2"
+                            Click="IncreaseDelayButton_Click"
+                            Background="#4CAF50"/>
                 </Grid>
             </StackPanel>
         </GroupBox>
@@ -125,7 +132,22 @@
             <StackPanel>
                 <CheckBox x:Name="ShowOverlayCheckBox" Content="Show Overlay Window" IsChecked="True" Checked="ShowOverlayCheckBox_Changed" Unchecked="ShowOverlayCheckBox_Changed"/>
                 <CheckBox x:Name="VisualAlertsCheckBox" Content="Visual Alerts (flash overlay when your turn approaches)" IsChecked="True"/>
-                <CheckBox x:Name="AudioBeepCheckBox" Content="Audio Beep (beep when any CH is cast)" IsChecked="False"/>
+                <CheckBox x:Name="AudioBeepCheckBox" Content="Audio Beep (beep when any CH is cast)" IsChecked="False" Visibility="Collapsed"/>
+                <Button x:Name="ConfigAudioAlertsButton" 
+                        Content="Config Audio Alerts" 
+                        Click="ConfigAudioAlertsButton_Click"
+                        Margin="20,5,0,5"
+                        HorizontalAlignment="Left"
+                        Width="200"
+                        Background="#2196F3"/>
+                <CheckBox x:Name="DDRModeCheckBox" Content="DDR Mode (fun audio feedback and scoring)" IsChecked="False"/>
+                <Button x:Name="ResetDDRScoreboardButton" 
+                        Content="Reset Scoreboard" 
+                        Click="ResetDDRScoreboardButton_Click"
+                        Margin="20,5,0,5"
+                        HorizontalAlignment="Left"
+                        Width="200"
+                        Background="#FF6B35"/>
                 <!-- Auto-cast hidden but code preserved for future use -->
                 <CheckBox x:Name="AutoCastCheckBox" Content="Auto-Cast (send keypress on your turn)" Visibility="Collapsed"/>
                 

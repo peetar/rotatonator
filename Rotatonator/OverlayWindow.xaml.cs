@@ -29,6 +29,9 @@ namespace Rotatonator
         private DispatcherTimer? warningFlashTimer;
         private DispatcherTimer? castNowResetTimer;
         private DateTime lastHealTime = DateTime.MinValue;
+        private readonly TextToSpeechService ttsService;
+        private readonly DDRScoreTracker ddrScoreTracker;
+        private readonly DDRAudioService ddrAudioService;
 
         public OverlayWindow(RotationManager manager)
         {
@@ -37,6 +40,9 @@ namespace Rotatonator
             rotationManager = manager;
             activeHeals = new ObservableCollection<HealTimerViewModel>();
             ActiveHealsItemsControl.ItemsSource = activeHeals;
+            ttsService = new TextToSpeechService();
+            ddrScoreTracker = new DDRScoreTracker();
+            ddrAudioService = new DDRAudioService();
 
             // Make window completely click-through
             Loaded += (s, e) =>
@@ -98,7 +104,8 @@ namespace Rotatonator
                 OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
                 
                 // Play beep if enabled
-                if (rotationManager.Config.EnableAudioBeep)
+                var audioConfig = rotationManager.Config.AudioAlerts;
+                if (audioConfig?.EnableAudioBeep == true)
                 {
                     try
                     {
@@ -111,6 +118,56 @@ namespace Rotatonator
                     {
                         // Beep not supported
                     }
+                }
+                
+                // TTS announcements based on config
+                if (audioConfig != null)
+                {
+                    Console.WriteLine($"[TTS] Config - Number:{audioConfig.AnnounceHealerNumber} Name:{audioConfig.AnnounceHealerName} Target:{audioConfig.AnnounceTargetName}");
+                    
+                    if (audioConfig.AnnounceHealerNumber && e.HealerPosition > 0)
+                    {
+                        Console.WriteLine($"[TTS] Calling AnnounceHealerNumber({e.HealerPosition})");
+                        ttsService.AnnounceHealerNumber(e.HealerPosition);
+                    }
+                    
+                    if (audioConfig.AnnounceHealerName)
+                    {
+                        Console.WriteLine($"[TTS] Calling AnnounceHealerName({e.HealerName})");
+                        ttsService.AnnounceHealerName(e.HealerName);
+                    }
+                    
+                    if (audioConfig.AnnounceTargetName && !string.IsNullOrWhiteSpace(e.TargetName))
+                    {
+                        Console.WriteLine($"[TTS] Calling AnnounceTargetName({e.TargetName})");
+                        ttsService.AnnounceTargetName(e.TargetName);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("[TTS] AudioAlerts config is null");
+                }
+                
+                // DDR Mode feedback
+                if (rotationManager.Config.EnableDDRMode && e.ExpectedCastTime.HasValue && !e.SkipDDRScoring)
+                {
+                    var ddrResult = ddrScoreTracker.EvaluateTiming(e.ExpectedCastTime.Value, e.CastTime, e.HealerName, e.IsPlayerCast);
+                    int goodStreak = ddrScoreTracker.GetCurrentStreak(e.HealerName);
+                    int badStreak = ddrScoreTracker.GetCurrentBadStreak(e.HealerName);
+                    ddrAudioService.PlayFeedback(ddrResult, badStreak, goodStreak);
+                    
+                    Console.WriteLine($"[DDR] {e.HealerName} - Accuracy: {ddrResult.Accuracy}, " +
+                                    $"Difference: {ddrResult.TimeDifference:F2}s, " +
+                                    $"Points: {ddrResult.PointsAwarded:+#;-#;0}, " +
+                                    $"Total: {ddrResult.TotalScore}" +
+                                    (e.IsPlayerCast ? $", Streak: {ddrResult.PerfectStreak}, Combo: {ddrResult.ComboLevel}" : ""));
+                    
+                    // Update scoreboard display
+                    UpdateScoreboard();
+                }
+                else if (e.SkipDDRScoring)
+                {
+                    Console.WriteLine($"[DDR] Skipping DDR scoring for {e.HealerName} - heal timing out of range");
                 }
                 
                 // If this is the player casting, hide the "YOU'RE NEXT" warning
@@ -150,6 +207,13 @@ namespace Rotatonator
             {
                 NextWarningTextBlock.Text = $"YOU'RE NEXT! ({e.TimeUntilCast.TotalSeconds}s)";
                 NextWarningTextBlock.Visibility = Visibility.Visible;
+                
+                // TTS announcement for "you're next"
+                var audioConfig = rotationManager.Config.AudioAlerts;
+                if (audioConfig?.AnnounceYoureNext == true)
+                {
+                    ttsService.AnnounceYoureNext();
+                }
                 
                 if (!rotationManager.Config.EnableVisualAlerts)
                     return;
@@ -191,6 +255,13 @@ namespace Rotatonator
                 
                 // Update text
                 NextWarningTextBlock.Text = "CAST NOW!";
+                
+                // TTS announcement for "cast now"
+                var audioConfig = rotationManager.Config.AudioAlerts;
+                if (audioConfig?.AnnounceCastNow == true)
+                {
+                    ttsService.AnnounceCastNow();
+                }
                 
                 if (!rotationManager.Config.EnableVisualAlerts)
                     return;
@@ -257,6 +328,8 @@ namespace Rotatonator
             rotationManager.HealCastDetected -= OnHealCastDetected;
             rotationManager.PlayerTurnStarting -= OnPlayerTurnStarting;
             rotationManager.PlayerTurnNow -= OnPlayerTurnNow;
+            ttsService?.Dispose();
+            ddrAudioService?.Dispose();
             base.OnClosed(e);
         }
 
@@ -285,8 +358,27 @@ namespace Rotatonator
             }
             catch
             {
-                // Audio playback not supported
+                // Audio playback failed
             }
+        }
+        
+        private void UpdateScoreboard()
+        {
+            if (!rotationManager.Config.EnableDDRMode)
+            {
+                ScoreboardPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+            
+            var leaderboard = ddrScoreTracker.GetLeaderboard();
+            ScoreboardItemsControl.ItemsSource = leaderboard;
+            ScoreboardPanel.Visibility = leaderboard.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public void ResetDDRScoreboard()
+        {
+            ddrScoreTracker.ResetAll();
+            UpdateScoreboard();
         }
     }
 

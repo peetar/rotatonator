@@ -19,6 +19,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             
             <!-- Chain Info -->
@@ -73,7 +74,7 @@
                                 </Grid>
                                 
                                 <ProgressBar Grid.Row="1"
-                                             Height="6"
+                                             Height="12"
                                              Margin="0,4,0,0"
                                              Minimum="0"
                                              Maximum="{Binding TotalTime}"
@@ -85,6 +86,59 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            
+            <!-- DDR Scoreboard -->
+            <Border Grid.Row="3" 
+                    x:Name="ScoreboardPanel"
+                    Background="#CC1A1A1A" 
+                    CornerRadius="5" 
+                    Padding="10"
+                    Margin="0,10,0,0"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="🏆 SCOREBOARD 🏆"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#FFD700"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,8"/>
+                    
+                    <ItemsControl x:Name="ScoreboardItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding HealerName}"
+                                               FontSize="12"
+                                               Foreground="White"/>
+                                    
+                                    <TextBlock Grid.Column="1"
+                                               FontSize="12"
+                                               Foreground="#4CAF50"
+                                               Margin="8,0">
+                                        <Run Text="🔥"/>
+                                        <Run Text="{Binding CurrentStreak}"/>
+                                    </TextBlock>
+                                    
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Score}"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="#FFD700"
+                                               MinWidth="50"
+                                               TextAlignment="Right"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </Window>

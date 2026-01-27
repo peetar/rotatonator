@@ -14,6 +14,8 @@ namespace Rotatonator
         public bool ShowOverlay { get; set; } = true;
         public bool EnableVisualAlerts { get; set; } = true;
         public bool EnableAudioBeep { get; set; } = false;
+        public AudioAlertConfig? AudioAlerts { get; set; }
+        public bool EnableDDRMode { get; set; } = false;
     }
 
     public static class SettingsManager

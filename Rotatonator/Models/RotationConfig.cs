@@ -13,5 +13,7 @@ namespace Rotatonator
         public bool EnableAudioBeep { get; set; } = false;
         public bool EnableAutoCast { get; set; } = false;
         public string CastHotkey { get; set; } = "1";
+        public AudioAlertConfig AudioAlerts { get; set; } = new AudioAlertConfig();
+        public bool EnableDDRMode { get; set; } = false;
     }
 }

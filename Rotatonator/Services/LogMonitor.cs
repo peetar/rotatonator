@@ -41,8 +41,9 @@ namespace Rotatonator
             
             // Build regex for detecting chain import messages
             // Pattern: Rotatonator set_chain: 111 Name1, 222 Name2, set_delay: 3
+            // Also matches delay-only format: Rotatonator set_delay: 3
             chainImportRegex = new Regex(
-                @"Rotatonator\s+set_chain:\s*(.+?)\s*,\s*set_delay:\s*(\d+)",
+                @"Rotatonator\s+(?:set_chain:\s*(.+?)\s*,\s*)?set_delay:\s*(\d+)",
                 RegexOptions.Compiled | RegexOptions.IgnoreCase
             );
             
@@ -105,12 +106,21 @@ namespace Rotatonator
                 var importMatch = chainImportRegex.Match(line);
                 if (importMatch.Success)
                 {
-                    string chainData = importMatch.Groups[1].Value;
+                    string? chainData = importMatch.Groups[1].Success ? importMatch.Groups[1].Value : null;
                     string delayStr = importMatch.Groups[2].Value;
                     
                     if (int.TryParse(delayStr, out int delay))
                     {
-                        rotationManager.OnChainImport(chainData, delay);
+                        if (!string.IsNullOrEmpty(chainData))
+                        {
+                            // Full chain import with both chain and delay
+                            rotationManager.OnChainImport(chainData, delay);
+                        }
+                        else
+                        {
+                            // Delay-only import - just update the delay
+                            rotationManager.OnDelayOnlyImport(delay);
+                        }
                         return;
                     }
                 }

@@ -9,6 +9,14 @@ obj/
 # Release packages
 *.zip
 
+# Publish folder - contains built releases
+publish/
+
+# Audio files (user-provided, not in source control)
+Rotatonator/Audio/DDR/*.mp3
+Rotatonator/Audio/DDR/*.wav
+!Rotatonator/Audio/DDR/README.txt
+
 # Visual Studio
 .vs/
 *.userprefs
