@@ -10,6 +10,7 @@ namespace Rotatonator
     {
         private OverlayWindow? overlayWindow;
         private OverlayAnchor? overlayAnchor;
+        private DDRGraphicalOverlay? ddrGraphicalOverlay;
         private LogMonitor? logMonitor;
         private RotationManager? rotationManager;
         private Point overlayPosition = new Point(100, 100);
@@ -288,6 +289,8 @@ namespace Rotatonator
 
         private void ConfigAudioAlertsButton_Click(object sender, RoutedEventArgs e)
         {
+            HideDDROverlayForDialog();
+            
             var dialog = new AudioAlertConfigDialog(audioAlertConfig);
             if (dialog.ShowDialog() == true)
             {
@@ -301,19 +304,30 @@ namespace Rotatonator
                 
                 SaveCurrentSettings();
             }
+            
+            RestoreDDROverlayAfterDialog();
         }
 
-        private void ResetDDRScoreboardButton_Click(object sender, RoutedEventArgs e)
+        private void DDRModeCheckBox_Changed(object sender, RoutedEventArgs e)
         {
-            if (overlayWindow != null)
+            if (DDRModeCheckBox.IsChecked == true && rotationManager != null)
             {
-                overlayWindow.ResetDDRScoreboard();
-                StatusTextBlock.Text = "DDR Scoreboard reset!";
-                StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
+                if (ddrGraphicalOverlay == null)
+                {
+                    // Pass DDRAudioService and DDRScoreTracker from overlayWindow if available
+                    var ddrAudio = overlayWindow?.GetDDRAudioService();
+                    var scoreTracker = overlayWindow?.GetDDRScoreTracker();
+                    ddrGraphicalOverlay = new DDRGraphicalOverlay(rotationManager, ddrAudio, scoreTracker);
+                    ddrGraphicalOverlay.Show();
+                }
+                else
+                {
+                    ddrGraphicalOverlay.Visibility = Visibility.Visible;
+                }
             }
-            else
+            else if (ddrGraphicalOverlay != null)
             {
-                MessageBox.Show("Overlay window is not open. Start monitoring first.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                ddrGraphicalOverlay.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -460,6 +474,15 @@ namespace Rotatonator
                     overlayWindow.Show();
                 }
 
+                // Create DDR graphical overlay if enabled
+                if (DDRModeCheckBox.IsChecked == true)
+                {
+                    var ddrAudio = overlayWindow?.GetDDRAudioService();
+                    var scoreTracker = overlayWindow?.GetDDRScoreTracker();
+                    ddrGraphicalOverlay = new DDRGraphicalOverlay(rotationManager, ddrAudio, scoreTracker);
+                    ddrGraphicalOverlay.Show();
+                }
+
                 // Start log monitoring
                 logMonitor = new LogMonitor(LogFilePathTextBox.Text, rotationManager);
                 logMonitor.Start();
@@ -494,6 +517,14 @@ namespace Rotatonator
                 overlayPosition = new Point(overlayWindow.Left, overlayWindow.Top);
                 overlayWindow.Close();
                 overlayWindow = null;
+            }
+
+            if (ddrGraphicalOverlay != null)
+            {
+                // Stop all audio before closing
+                ddrGraphicalOverlay.StopAllAudio();
+                ddrGraphicalOverlay.Close();
+                ddrGraphicalOverlay = null;
             }
 
             rotationManager = null;
@@ -533,6 +564,30 @@ namespace Rotatonator
                 // Update overlay if it exists
                 overlayWindow?.UpdateChainInfo();
             });
+        }
+
+        private void HideDDROverlayForDialog()
+        {
+            if (ddrGraphicalOverlay != null && ddrGraphicalOverlay.Visibility == Visibility.Visible)
+            {
+                ddrGraphicalOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void RestoreDDROverlayAfterDialog()
+        {
+            if (ddrGraphicalOverlay != null && DDRModeCheckBox.IsChecked == true)
+            {
+                ddrGraphicalOverlay.Visibility = Visibility.Visible;
+            }
+        }
+        
+        private MessageBoxResult ShowMessageBox(string messageBoxText, string caption, MessageBoxButton button, MessageBoxImage icon)
+        {
+            HideDDROverlayForDialog();
+            var result = MessageBox.Show(messageBoxText, caption, button, icon);
+            RestoreDDROverlayAfterDialog();
+            return result;
         }
 
         private void SaveCurrentSettings()

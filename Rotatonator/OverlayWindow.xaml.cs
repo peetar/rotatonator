@@ -151,7 +151,7 @@ namespace Rotatonator
                 // DDR Mode feedback
                 if (rotationManager.Config.EnableDDRMode && e.ExpectedCastTime.HasValue && !e.SkipDDRScoring)
                 {
-                    var ddrResult = ddrScoreTracker.EvaluateTiming(e.ExpectedCastTime.Value, e.CastTime, e.HealerName, e.IsPlayerCast);
+                    var ddrResult = ddrScoreTracker.EvaluateTiming(e.ExpectedCastTime.Value, e.CastTime, e.HealerName, e.IsPlayerCast, rotationManager.Config.ChainInterval);
                     int goodStreak = ddrScoreTracker.GetCurrentStreak(e.HealerName);
                     int badStreak = ddrScoreTracker.GetCurrentBadStreak(e.HealerName);
                     ddrAudioService.PlayFeedback(ddrResult, badStreak, goodStreak);
@@ -161,9 +161,6 @@ namespace Rotatonator
                                     $"Points: {ddrResult.PointsAwarded:+#;-#;0}, " +
                                     $"Total: {ddrResult.TotalScore}" +
                                     (e.IsPlayerCast ? $", Streak: {ddrResult.PerfectStreak}, Combo: {ddrResult.ComboLevel}" : ""));
-                    
-                    // Update scoreboard display
-                    UpdateScoreboard();
                 }
                 else if (e.SkipDDRScoring)
                 {
@@ -332,6 +329,22 @@ namespace Rotatonator
             ddrAudioService?.Dispose();
             base.OnClosed(e);
         }
+        
+        /// <summary>
+        /// Get the DDR audio service for use by other overlays
+        /// </summary>
+        public DDRAudioService? GetDDRAudioService()
+        {
+            return ddrAudioService;
+        }
+        
+        /// <summary>
+        /// Get the DDR score tracker for use by other overlays
+        /// </summary>
+        public DDRScoreTracker? GetDDRScoreTracker()
+        {
+            return ddrScoreTracker;
+        }
 
         private void PlayBeep(int frequency, int duration, float volume)
         {
@@ -360,25 +373,6 @@ namespace Rotatonator
             {
                 // Audio playback failed
             }
-        }
-        
-        private void UpdateScoreboard()
-        {
-            if (!rotationManager.Config.EnableDDRMode)
-            {
-                ScoreboardPanel.Visibility = Visibility.Collapsed;
-                return;
-            }
-            
-            var leaderboard = ddrScoreTracker.GetLeaderboard();
-            ScoreboardItemsControl.ItemsSource = leaderboard;
-            ScoreboardPanel.Visibility = leaderboard.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        public void ResetDDRScoreboard()
-        {
-            ddrScoreTracker.ResetAll();
-            UpdateScoreboard();
         }
     }
 

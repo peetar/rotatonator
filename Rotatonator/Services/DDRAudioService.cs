@@ -18,6 +18,8 @@ namespace Rotatonator
         private readonly string badRareFolder;
         private readonly Random rng = new Random();
         private bool disposed = false;
+        
+        public bool IsMuted { get; set; } = false;
 
         private string[] goodCommonFiles = Array.Empty<string>();
         private string[] goodRareFiles = Array.Empty<string>();
@@ -113,6 +115,8 @@ namespace Rotatonator
 
         private void PlayAudioFile(string filePath)
         {
+            if (IsMuted) return; // Skip if muted
+            
             System.Threading.Tasks.Task.Run(() =>
             {
                 try

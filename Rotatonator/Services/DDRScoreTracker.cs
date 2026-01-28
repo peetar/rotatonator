@@ -11,24 +11,43 @@ namespace Rotatonator
         private Dictionary<string, int> playerStreaks = new Dictionary<string, int>(); // good streaks
         private Dictionary<string, int> playerBadStreaks = new Dictionary<string, int>(); // bad streaks
         private Dictionary<string, int> playerScores = new Dictionary<string, int>();
-        private const double PERFECT_THRESHOLD = 0.5; // ±0.5 seconds is "perfect"
-        private const double LATE_THRESHOLD = 1.0; // >1 second is "late" (groan)
 
         // Scoring system
         private const int PERFECT_BASE_POINTS = 100;
         private const int EARLY_PENALTY = -25;
         private const int LATE_PENALTY = -50;
         
-        // Combo multipliers (streak bonus points added to base)
+        /// <summary>
+        /// Calculate timing thresholds based on chain interval.
+        /// For 7+ second intervals: ±0.5s perfect, >1.0s late
+        /// For 2- second intervals: ±0.25s perfect, >0.5s late
+        /// Linear scaling in between
+        /// </summary>
+        private (double perfectThreshold, double lateThreshold) GetTimingThresholds(TimeSpan chainInterval)
+        {
+            double intervalSeconds = chainInterval.TotalSeconds;
+            
+            // Clamp interval between 2 and 7 seconds for calculation
+            double clampedInterval = Math.Max(2.0, Math.Min(7.0, intervalSeconds));
+            
+            // Linear interpolation between:
+            // 2s interval -> 0.25s perfect, 0.5s late
+            // 7s interval -> 0.5s perfect, 1.0s late
+            double t = (clampedInterval - 2.0) / 5.0; // Normalize to 0-1 range
+            
+            double perfectThreshold = 0.25 + (t * 0.25); // 0.25 to 0.5
+            double lateThreshold = 0.5 + (t * 0.5);      // 0.5 to 1.0
+            
+            return (perfectThreshold, lateThreshold);
+        }
+        
+        // Combo multipliers (streak bonus points added to base 100)
         private static readonly Dictionary<int, int> ComboBonus = new Dictionary<int, int>
         {
-            { 1, 0 },      // Great: 100 points
-            { 2, 50 },     // Wow: 150 points
-            { 3, 100 },    // Heating Up: 200 points
-            { 4, 150 },    // Perfect: 250 points
-            { 5, 200 },    // Perfect: 300 points
-            { 6, 300 },    // On Fire: 400 points
-            { 7, 500 },    // High Score: 600 points
+            { 1, 0 },      // 1 heal: 100 points
+            { 2, 50 },     // 2 heals: 150 points
+            { 3, 100 },    // 3 heals: 200 points
+            { 4, 150 },    // 4+ heals: 250 points (max)
         };
 
         /// <summary>
@@ -38,10 +57,13 @@ namespace Rotatonator
         /// <param name="actualTime">When the heal was actually cast</param>
         /// <param name="healerName">Name of the healer</param>
         /// <param name="isPlayer">True if this is the current player</param>
+        /// <param name="chainInterval">The chain heal interval (used to scale timing thresholds)</param>
         /// <returns>Timing result with accuracy and feedback type</returns>
-        public DDRTimingResult EvaluateTiming(DateTime expectedTime, DateTime actualTime, string healerName, bool isPlayer)
+        public DDRTimingResult EvaluateTiming(DateTime expectedTime, DateTime actualTime, string healerName, bool isPlayer, TimeSpan chainInterval)
         {
             var timeDifference = (actualTime - expectedTime).TotalSeconds;
+            var (perfectThreshold, lateThreshold) = GetTimingThresholds(chainInterval);
+            
             var result = new DDRTimingResult
             {
                 TimeDifference = timeDifference,
@@ -58,7 +80,7 @@ namespace Rotatonator
             }
 
             // Check if early
-            if (timeDifference < -PERFECT_THRESHOLD)
+            if (timeDifference < -perfectThreshold)
             {
                 result.Accuracy = DDRAccuracy.Early;
                 playerStreaks[healerName] = 0; // Break good streak
@@ -70,7 +92,7 @@ namespace Rotatonator
             }
 
             // Check if late
-            if (timeDifference > LATE_THRESHOLD)
+            if (timeDifference > lateThreshold)
             {
                 result.Accuracy = DDRAccuracy.Late;
                 playerStreaks[healerName] = 0; // Break good streak
@@ -81,17 +103,17 @@ namespace Rotatonator
                 return result;
             }
 
-            // Perfect timing (within ±0.5 seconds)
+            // Perfect timing (within threshold based on interval)
             result.Accuracy = DDRAccuracy.Perfect;
             playerStreaks[healerName]++;
             playerBadStreaks[healerName] = 0; // Reset bad streak
             result.PerfectStreak = playerStreaks[healerName];
             result.ComboLevel = GetComboLevel(playerStreaks[healerName]);
             
-            // Calculate points with combo bonus
-            int comboBonus = playerStreaks[healerName] <= 7 
+            // Calculate points with combo bonus (capped at 250 after 4 good heals)
+            int comboBonus = playerStreaks[healerName] <= 4 
                 ? ComboBonus[playerStreaks[healerName]] 
-                : 500; // 8+ streak = 600 points
+                : 150; // 5+ streak = still 250 points (capped)
             
             result.PointsAwarded = PERFECT_BASE_POINTS + comboBonus;
             playerScores[healerName] += result.PointsAwarded;

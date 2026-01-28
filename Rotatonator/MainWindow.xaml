@@ -140,14 +140,7 @@
                         HorizontalAlignment="Left"
                         Width="200"
                         Background="#2196F3"/>
-                <CheckBox x:Name="DDRModeCheckBox" Content="DDR Mode (fun audio feedback and scoring)" IsChecked="False"/>
-                <Button x:Name="ResetDDRScoreboardButton" 
-                        Content="Reset Scoreboard" 
-                        Click="ResetDDRScoreboardButton_Click"
-                        Margin="20,5,0,5"
-                        HorizontalAlignment="Left"
-                        Width="200"
-                        Background="#FF6B35"/>
+                <CheckBox x:Name="DDRModeCheckBox" Content="DDR Mode (visual lanes, audio feedback, and scoring)" IsChecked="False" Checked="DDRModeCheckBox_Changed" Unchecked="DDRModeCheckBox_Changed"/>
                 <!-- Auto-cast hidden but code preserved for future use -->
                 <CheckBox x:Name="AutoCastCheckBox" Content="Auto-Cast (send keypress on your turn)" Visibility="Collapsed"/>
                 
