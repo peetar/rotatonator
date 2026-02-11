@@ -56,7 +56,11 @@ dotnet build
    - Audio Alerts: Beeps when it's your turn (can be muted)
    - Silly Mode (v1.4+): Optional background music in DDR mode
 
-4. **Start Monitoring**: Click "Start Monitoring" to begin
+4. **Share Configuration**:
+   - **Adjust Chain Timing**: Click the +/- buttons to adjust chain interval - this automatically copies your current rotation config to clipboard for easy sharing in raid say
+   - **Export Scores** (DDR Mode): Click "Export Scores" to copy healer scores in chat format (`/rs HealerName: Score, ...`) ready to paste
+
+5. **Start Monitoring**: Click "Start Monitoring" to begin
 
 ## How It Works
 
