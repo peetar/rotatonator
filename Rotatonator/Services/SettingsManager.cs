@@ -16,6 +16,7 @@ namespace Rotatonator
         public bool EnableAudioBeep { get; set; } = false;
         public AudioAlertConfig? AudioAlerts { get; set; }
         public bool EnableDDRMode { get; set; } = false;
+        public bool EnableDDRSillyMode { get; set; } = false;
     }
 
     public static class SettingsManager

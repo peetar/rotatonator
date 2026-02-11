@@ -25,6 +25,10 @@ namespace Rotatonator
         private readonly List<Star> stars = new List<Star>();
         private const int StarCount = 200;
         
+        // Progress lane for tracking in-progress heals
+        private Grid? progressLane;
+        private readonly List<HealProgress> activeHeals = new List<HealProgress>();
+        
         // Background music
         private IWavePlayer? wavePlayer;
         private AudioFileReader? audioFileReader;
@@ -35,6 +39,8 @@ namespace Rotatonator
         private bool isMuted = false;
         private DDRAudioService? ddrAudioService;
         private DDRScoreTracker? ddrScoreTracker;
+        
+        public bool IsMuted => isMuted;
 
         public DDRGraphicalOverlay(RotationManager manager, DDRAudioService? ddrAudio = null, DDRScoreTracker? scoreTracker = null)
         {
@@ -76,8 +82,11 @@ namespace Rotatonator
             // Initialize starfield after window is loaded (when canvas has actual size)
             this.Loaded += (s, e) => InitializeStarfield();
             
-            // Initialize background music
-            InitializeBackgroundMusic();
+            // Initialize background music only if silly mode is enabled
+            if (rotationManager.Config.EnableDDRSillyMode)
+            {
+                InitializeBackgroundMusic();
+            }
         }
         
         private void InitializeBackgroundMusic()
@@ -185,9 +194,6 @@ namespace Rotatonator
         {
             isMuted = !isMuted;
             
-            // Update button icon
-            MuteButton.Content = isMuted ? "🔇" : "🔊";
-            
             // Update background music volume
             if (audioFileReader != null)
             {
@@ -212,6 +218,11 @@ namespace Rotatonator
             }
             
             System.Diagnostics.Debug.WriteLine($"Audio muted: {isMuted}");
+        }
+        
+        public void ToggleMute()
+        {
+            MuteButton_Click(this, new RoutedEventArgs());
         }
         
         private void InitializeStarfield()
@@ -304,12 +315,53 @@ namespace Rotatonator
                 DragMove();
             }
         }
+        
+        private void ResizeGrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left)
+            {
+                e.Handled = true; // Prevent event from bubbling to Border
+                
+                var grip = sender as FrameworkElement;
+                if (grip == null) return;
+                
+                grip.CaptureMouse();
+                
+                var startPos = e.GetPosition(this);
+                var startWidth = this.Width;
+                var startHeight = this.Height;
+                
+                MouseEventHandler moveHandler = null;
+                MouseButtonEventHandler upHandler = null;
+                
+                moveHandler = (s, args) =>
+                {
+                    var currentPos = args.GetPosition(this);
+                    var deltaX = currentPos.X - startPos.X;
+                    var deltaY = currentPos.Y - startPos.Y;
+                    
+                    this.Width = Math.Max(this.MinWidth, startWidth + deltaX);
+                    this.Height = Math.Max(this.MinHeight, startHeight + deltaY);
+                };
+                
+                upHandler = (s, args) =>
+                {
+                    grip.ReleaseMouseCapture();
+                    this.MouseMove -= moveHandler;
+                    this.MouseLeftButtonUp -= upHandler;
+                };
+                
+                this.MouseMove += moveHandler;
+                this.MouseLeftButtonUp += upHandler;
+            }
+        }
 
         private void InitializeLanes()
         {
             LanesContainer.Children.Clear();
             LanesContainer.ColumnDefinitions.Clear();
             healerLanes.Clear();
+            activeHeals.Clear();
 
             var healers = rotationManager.Config.Healers;
             if (healers.Count == 0) return;
@@ -325,12 +377,79 @@ namespace Rotatonator
                 LanesContainer.Children.Add(lane.Container);
                 healerLanes[healers[i]] = lane;
             }
+            
+            // Add progress lane on the right with fixed width
+            LanesContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+            progressLane = new Grid
+            {
+                Background = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(0, 1),
+                    GradientStops = new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromArgb(80, 128, 0, 128), 0.0),   // Purple top
+                        new GradientStop(Color.FromArgb(40, 64, 0, 64), 0.5),     // Darker middle
+                        new GradientStop(Color.FromArgb(80, 128, 0, 128), 1.0)    // Purple bottom
+                    }
+                },
+                Margin = new Thickness(5, 0, 5, 0)
+            };
+            
+            // Add diagonal stripe pattern
+            var stripePattern = new DrawingBrush
+            {
+                TileMode = TileMode.Tile,
+                Viewport = new Rect(0, 0, 10, 10),
+                ViewportUnits = BrushMappingMode.Absolute,
+                Drawing = new GeometryDrawing
+                {
+                    Geometry = new LineGeometry(new Point(0, 10), new Point(10, 0)),
+                    Pen = new Pen(new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)), 1)
+                }
+            };
+            
+            var patternRect = new Rectangle
+            {
+                Fill = stripePattern,
+                Opacity = 0.5
+            };
+            progressLane.Children.Add(patternRect);
+            
+            // Add target indicator at bottom (aligned with healer names)
+            var targetIndicator = new Border
+            {
+                Width = 80,
+                Height = 25,
+                Background = Brushes.Transparent,
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 0, 255, 255)), // Bright cyan border
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(5),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, 10), // Match healer name position
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Cyan,
+                    BlurRadius = 15,
+                    ShadowDepth = 0,
+                    Opacity = 0.8
+                }
+            };
+            progressLane.Children.Add(targetIndicator);
+            
+            Grid.SetColumn(progressLane, healers.Count);
+            Grid.SetRow(progressLane, 0);
+            LanesContainer.Children.Add(progressLane);
         }
 
         private void OnHealCastDetected(object? sender, HealCastEventArgs e)
         {
             Dispatcher.Invoke(() =>
             {
+                // Add heal to progress lane
+                AddHealToProgressLane(e.TargetName, e.HealerName);
+                
                 if (healerLanes.TryGetValue(e.HealerName, out var lane))
                 {
                     // Start casting for this healer
@@ -406,6 +525,9 @@ namespace Rotatonator
             {
                 lane.Update();
             }
+            
+            // Update progress lane
+            UpdateProgressLane();
             
             // Update scores from tracker
             if (ddrScoreTracker != null)
@@ -562,6 +684,8 @@ namespace Rotatonator
             private readonly TextBlock scoreDisplay;
             private readonly TextBlock movingName;
             private readonly TextBlock scorePopup;
+            private readonly TextBlock countdownTimer;
+            private readonly Ellipse? incomingMarker;
             private readonly string healerName;
             private readonly Storyboard? vibrateStoryboard;
             private readonly Storyboard? pulseStoryboard;
@@ -701,6 +825,51 @@ namespace Rotatonator
                 };
                 Container.Children.Add(scorePopup);
 
+                // Countdown timer text (seconds remaining)
+                countdownTimer = new TextBlock
+                {
+                    Text = "",
+                    Foreground = Brushes.White,
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Visibility = Visibility.Collapsed,
+                    RenderTransform = new TranslateTransform(),
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        Color = Colors.Cyan,
+                        BlurRadius = 10,
+                        ShadowDepth = 0,
+                        Opacity = 0.8
+                    }
+                };
+                Container.Children.Add(countdownTimer);
+                
+                // Incoming heal marker (falling circle) - Removed as distracting
+                /*
+                incomingMarker = new Ellipse
+                {
+                    Width = 25,
+                    Height = 25,
+                    Fill = new SolidColorBrush(Color.FromArgb(180, 255, 255, 0)), // Semi-transparent yellow
+                    Stroke = Brushes.White,
+                    StrokeThickness = 2,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Bottom,
+                    Visibility = Visibility.Collapsed,
+                    RenderTransform = new TranslateTransform(),
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        Color = Colors.Yellow,
+                        BlurRadius = 15,
+                        ShadowDepth = 0,
+                        Opacity = 0.9
+                    }
+                };
+                Container.Children.Add(incomingMarker);
+                */
+
                 // Load animations from Window resources (not Container)
                 try
                 {
@@ -753,12 +922,18 @@ namespace Rotatonator
                 countdownStart = DateTime.Now;
                 countdownDuration = duration;
                 movingName.Visibility = Visibility.Visible;
+                countdownTimer.Visibility = Visibility.Visible;
+                if (incomingMarker != null)
+                    incomingMarker.Visibility = Visibility.Visible;
             }
 
             public void StopCountdown()
             {
                 countdownStart = null;
                 movingName.Visibility = Visibility.Collapsed;
+                countdownTimer.Visibility = Visibility.Collapsed;
+                if (incomingMarker != null)
+                    incomingMarker.Visibility = Visibility.Collapsed;
             }
 
             public void Update()
@@ -780,23 +955,49 @@ namespace Rotatonator
 
                     if (remaining.TotalSeconds <= 0)
                     {
-                        // Countdown complete - hide name
+                        // Countdown complete - hide all countdown indicators
                         movingName.Visibility = Visibility.Collapsed;
+                        countdownTimer.Visibility = Visibility.Collapsed;
+                        if (incomingMarker != null)
+                            incomingMarker.Visibility = Visibility.Collapsed;
                         countdownStart = null;
                         return;
                     }
 
+                    // Update countdown timer text
+                    countdownTimer.Text = $"{remaining.TotalSeconds:F1}s";
+                    
                     // Calculate position: line is 10 seconds tall
                     // remaining=10s → top (far up, negative Y), remaining=0s → bottom (Y=0, overlapping static name)
                     double progress = 1.0 - (remaining.TotalSeconds / 10.0);
                     progress = Math.Max(0, Math.Min(1.0, progress)); // Clamp 0-1
 
                     // Move from top (negative Y) to bottom (Y=0)
-                    // When progress=0 (10s remaining), Y should be -containerHeight
-                    // When progress=1 (0s remaining), Y should be 0 (perfectly overlapping static name)
                     double containerHeight = Container.ActualHeight;
                     double targetY = -(containerHeight * (1.0 - progress));
+                    
                     ((TranslateTransform)movingName.RenderTransform).Y = targetY;
+                    ((TranslateTransform)countdownTimer.RenderTransform).Y = targetY - 25; // Position above name
+                    
+                    if (incomingMarker != null)
+                    {
+                        ((TranslateTransform)incomingMarker.RenderTransform).Y = targetY - 50; // Position above timer
+                        
+                        // Pulse the marker when getting close (last 2 seconds)
+                        if (remaining.TotalSeconds <= 2.0)
+                        {
+                            double pulseSpeed = 5.0; // Hz
+                            double pulsePhase = (DateTime.Now.Millisecond / 1000.0) * pulseSpeed * Math.PI * 2;
+                            double pulseScale = 1.0 + 0.3 * Math.Sin(pulsePhase);
+                            incomingMarker.Width = 25 * pulseScale;
+                            incomingMarker.Height = 25 * pulseScale;
+                        }
+                        else
+                        {
+                            incomingMarker.Width = 25;
+                            incomingMarker.Height = 25;
+                        }
+                    }
                 }
             }
             
@@ -894,6 +1095,150 @@ namespace Rotatonator
             updateTimer?.Stop();
             pulseTimer?.Stop();
         }
+        
+        public DDRScoreTracker? GetScoreTracker()
+        {
+            return ddrScoreTracker;
+        }
+        
+        public void ResetScores()
+        {
+            if (ddrScoreTracker == null) return;
+            
+            ddrScoreTracker.ResetAll();
+            
+            // Reset all lane displays
+            foreach (var lane in healerLanes.Values)
+            {
+                lane.UpdateScore(0);
+            }
+        }
+        
+        public string ExportScores()
+        {
+            if (ddrScoreTracker == null)
+                return "";
+            
+            var leaderboard = ddrScoreTracker.GetLeaderboard();
+            if (leaderboard.Count == 0)
+                return "";
+            
+            // Build single-line output with comma separators
+            var scores = new List<string>();
+            foreach (var entry in leaderboard)
+            {
+                scores.Add($"{entry.HealerName}: {entry.Score}");
+            }
+            
+            return "/rs " + string.Join(", ", scores);
+        }
+        
+        private void AddHealToProgressLane(string targetName, string healerName)
+        {
+            if (progressLane == null) return;
+            
+            var healProgress = new HealProgress
+            {
+                TargetName = targetName,
+                HealerName = healerName,
+                StartTime = DateTime.Now,
+                Duration = TimeSpan.FromSeconds(10)
+            };
+            
+            // Create visual element
+            var indicator = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(200, 255, 100, 255)), // Bright magenta
+                BorderBrush = Brushes.White,
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(5),
+                Padding = new Thickness(5, 2, 5, 2),
+                VerticalAlignment = VerticalAlignment.Top,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                RenderTransform = new TranslateTransform(),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Magenta,
+                    BlurRadius = 15,
+                    ShadowDepth = 0,
+                    Opacity = 0.8
+                }
+            };
+            
+            var textBlock = new TextBlock
+            {
+                Text = targetName,
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White,
+                TextAlignment = TextAlignment.Center
+            };
+            
+            indicator.Child = textBlock;
+            healProgress.Visual = indicator;
+            
+            activeHeals.Add(healProgress);
+            progressLane.Children.Add(indicator);
+        }
+        
+        private void UpdateProgressLane()
+        {
+            if (progressLane == null) return;
+            
+            double laneHeight = progressLane.ActualHeight;
+            if (laneHeight == 0) return;
+            
+            // Target position: target indicator is 25px tall with 10px bottom margin
+            // Top of target is at laneHeight - 35, so heal should stop there
+            double targetY = laneHeight - 35;
+            
+            var toRemove = new List<HealProgress>();
+            
+            foreach (var heal in activeHeals)
+            {
+                var elapsed = DateTime.Now - heal.StartTime;
+                var progress = elapsed.TotalSeconds / heal.Duration.TotalSeconds;
+                
+                if (progress >= 1.0)
+                {
+                    // Heal complete - remove
+                    toRemove.Add(heal);
+                    if (heal.Visual != null && progressLane.Children.Contains(heal.Visual))
+                    {
+                        progressLane.Children.Remove(heal.Visual);
+                    }
+                }
+                else
+                {
+                    // Update position: move from top (0) to target line (targetY)
+                    if (heal.Visual != null)
+                    {
+                        var transform = (TranslateTransform)heal.Visual.RenderTransform;
+                        transform.Y = targetY * progress;
+                        
+                        // Fade out slightly as it gets close to completion
+                        heal.Visual.Opacity = 1.0 - (progress * 0.3);
+                    }
+                }
+            }
+            
+            foreach (var heal in toRemove)
+            {
+                activeHeals.Remove(heal);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Tracks an in-progress heal for visualization
+    /// </summary>
+    internal class HealProgress
+    {
+        public string TargetName { get; set; } = "";
+        public string HealerName { get; set; } = "";
+        public DateTime StartTime { get; set; }
+        public TimeSpan Duration { get; set; }
+        public Border? Visual { get; set; }
     }
     
     /// <summary>

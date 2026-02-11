@@ -15,5 +15,6 @@ namespace Rotatonator
         public string CastHotkey { get; set; } = "1";
         public AudioAlertConfig AudioAlerts { get; set; } = new AudioAlertConfig();
         public bool EnableDDRMode { get; set; } = false;
+        public bool EnableDDRSillyMode { get; set; } = false;
     }
 }

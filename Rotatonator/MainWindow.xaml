@@ -130,7 +130,6 @@
         <!-- Features -->
         <GroupBox Grid.Row="3" Header="Features" Foreground="White" Margin="0,0,0,15" Padding="10">
             <StackPanel>
-                <CheckBox x:Name="ShowOverlayCheckBox" Content="Show Overlay Window" IsChecked="True" Checked="ShowOverlayCheckBox_Changed" Unchecked="ShowOverlayCheckBox_Changed"/>
                 <CheckBox x:Name="VisualAlertsCheckBox" Content="Visual Alerts (flash overlay when your turn approaches)" IsChecked="True"/>
                 <CheckBox x:Name="AudioBeepCheckBox" Content="Audio Beep (beep when any CH is cast)" IsChecked="False" Visibility="Collapsed"/>
                 <Button x:Name="ConfigAudioAlertsButton" 
@@ -140,7 +139,29 @@
                         HorizontalAlignment="Left"
                         Width="200"
                         Background="#2196F3"/>
-                <CheckBox x:Name="DDRModeCheckBox" Content="DDR Mode (visual lanes, audio feedback, and scoring)" IsChecked="False" Checked="DDRModeCheckBox_Changed" Unchecked="DDRModeCheckBox_Changed"/>
+                <CheckBox x:Name="DDRModeCheckBox" Content="Use DDR Visualization (instead of classic overlay)" IsChecked="False" Checked="DDRModeCheckBox_Changed" Unchecked="DDRModeCheckBox_Changed"/>
+                <CheckBox x:Name="DDRSillyModeCheckBox" Content="DDR Silly Mode (music and sound effects)" IsChecked="False" Margin="20,0,0,5"/>
+                <Button x:Name="MuteAudioButton"
+                        Content="🔊 Mute Audio"
+                        Click="MuteAudioButton_Click"
+                        Margin="20,5,0,5"
+                        HorizontalAlignment="Left"
+                        Width="150"
+                        Background="#9C27B0"/>
+                <Button x:Name="ExportDDRScoresButton"
+                        Content="📋 Export DDR Scores"
+                        Click="ExportDDRScoresButton_Click"
+                        Margin="20,5,0,5"
+                        HorizontalAlignment="Left"
+                        Width="150"
+                        Background="#4CAF50"/>
+                <Button x:Name="ResetDDRScoresButton"
+                        Content="🔄 Reset DDR Scores"
+                        Click="ResetDDRScoresButton_Click"
+                        Margin="20,5,0,5"
+                        HorizontalAlignment="Left"
+                        Width="150"
+                        Background="#FF9800"/>
                 <!-- Auto-cast hidden but code preserved for future use -->
                 <CheckBox x:Name="AutoCastCheckBox" Content="Auto-Cast (send keypress on your turn)" Visibility="Collapsed"/>
                 

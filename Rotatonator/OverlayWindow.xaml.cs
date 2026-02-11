@@ -43,6 +43,9 @@ namespace Rotatonator
             ttsService = new TextToSpeechService();
             ddrScoreTracker = new DDRScoreTracker();
             ddrAudioService = new DDRAudioService();
+            
+            // Set silly mode based on config
+            ddrAudioService.SillyModeEnabled = manager.Config.EnableDDRSillyMode;
 
             // Make window completely click-through
             Loaded += (s, e) =>
@@ -90,18 +93,18 @@ namespace Rotatonator
                 // Update last heal time
                 lastHealTime = DateTime.Now;
                 
-                // Make sure overlay is visible
-                if (Visibility != Visibility.Visible)
+                // Make sure overlay is visible (only if DDR mode is not enabled)
+                if (Visibility != Visibility.Visible && !rotationManager.Config.EnableDDRMode)
                     Visibility = Visibility.Visible;
                 
-                // Stop the warning flash timer when any heal is cast
-                warningFlashTimer?.Stop();
-                
-                // Stop the cast now reset timer since a heal was actually cast
-                castNowResetTimer?.Stop();
-                
-                // Reset overlay background to normal when any heal is cast
-                OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
+                // Only stop warning flash timer if this is a valid in-chain heal
+                // Don't stop it for out-of-chain heals (position 0 or negative = invalid)
+                if (e.HealerPosition > 0 && e.HealerPosition <= rotationManager.Config.Healers.Count)
+                {
+                    warningFlashTimer?.Stop();
+                    castNowResetTimer?.Stop();
+                    OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
+                }
                 
                 // Play beep if enabled
                 var audioConfig = rotationManager.Config.AudioAlerts;
@@ -288,8 +291,10 @@ namespace Rotatonator
         {
             var now = DateTime.Now;
             
-            // Check if we should hide the overlay due to inactivity
-            if (lastHealTime != DateTime.MinValue && (now - lastHealTime).TotalSeconds > 30)
+            // Check if we should hide the overlay due to inactivity (only if DDR mode is not enabled)
+            if (!rotationManager.Config.EnableDDRMode && 
+                lastHealTime != DateTime.MinValue && 
+                (now - lastHealTime).TotalSeconds > 30)
             {
                 if (Visibility == Visibility.Visible)
                     Visibility = Visibility.Collapsed;

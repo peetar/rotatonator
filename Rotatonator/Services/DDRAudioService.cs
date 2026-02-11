@@ -20,6 +20,7 @@ namespace Rotatonator
         private bool disposed = false;
         
         public bool IsMuted { get; set; } = false;
+        public bool SillyModeEnabled { get; set; } = false;
 
         private string[] goodCommonFiles = Array.Empty<string>();
         private string[] goodRareFiles = Array.Empty<string>();
@@ -115,7 +116,7 @@ namespace Rotatonator
 
         private void PlayAudioFile(string filePath)
         {
-            if (IsMuted) return; // Skip if muted
+            if (IsMuted || !SillyModeEnabled) return; // Skip if muted or silly mode disabled
             
             System.Threading.Tasks.Task.Run(() =>
             {
