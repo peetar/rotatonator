@@ -71,10 +71,10 @@ namespace Rotatonator
             ChainPrefixTextBox.Text = settings.ChainPrefix;
             currentChainInterval = (int)settings.ChainInterval;
             UpdateChainIntervalDisplay();
-            ShowOverlayCheckBox.IsChecked = settings.ShowOverlay;
             VisualAlertsCheckBox.IsChecked = settings.EnableVisualAlerts;
             AudioBeepCheckBox.IsChecked = settings.EnableAudioBeep;
             DDRModeCheckBox.IsChecked = settings.EnableDDRMode;
+            DDRSillyModeCheckBox.IsChecked = settings.EnableDDRSillyMode;
             
             // Load audio alert config
             if (settings.AudioAlerts != null)
@@ -310,11 +310,22 @@ namespace Rotatonator
 
         private void DDRModeCheckBox_Changed(object sender, RoutedEventArgs e)
         {
-            if (DDRModeCheckBox.IsChecked == true && rotationManager != null)
+            // When DDR mode is enabled, hide classic overlay and show DDR overlay
+            // When DDR mode is disabled, show classic overlay and hide DDR overlay
+            
+            bool enableDDR = DDRModeCheckBox.IsChecked == true;
+            
+            if (enableDDR && rotationManager != null)
             {
+                // Hide classic overlay
+                if (overlayWindow != null)
+                {
+                    overlayWindow.Visibility = Visibility.Collapsed;
+                }
+                
+                // Show DDR overlay
                 if (ddrGraphicalOverlay == null)
                 {
-                    // Pass DDRAudioService and DDRScoreTracker from overlayWindow if available
                     var ddrAudio = overlayWindow?.GetDDRAudioService();
                     var scoreTracker = overlayWindow?.GetDDRScoreTracker();
                     ddrGraphicalOverlay = new DDRGraphicalOverlay(rotationManager, ddrAudio, scoreTracker);
@@ -325,31 +336,28 @@ namespace Rotatonator
                     ddrGraphicalOverlay.Visibility = Visibility.Visible;
                 }
             }
-            else if (ddrGraphicalOverlay != null)
+            else
             {
-                ddrGraphicalOverlay.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private void ShowOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            ShowHideAnchor();
-            
-            if (overlayWindow != null)
-            {
-                overlayWindow.Visibility = ShowOverlayCheckBox.IsChecked == true 
-                    ? Visibility.Visible 
-                    : Visibility.Collapsed;
+                // Hide DDR overlay
+                if (ddrGraphicalOverlay != null)
+                {
+                    ddrGraphicalOverlay.Visibility = Visibility.Collapsed;
+                }
+                
+                // Show classic overlay if monitoring is active and not in DDR mode
+                if (overlayWindow != null && DDRModeCheckBox.IsChecked != true)
+                {
+                    overlayWindow.Visibility = Visibility.Visible;
+                }
             }
         }
 
         private void ShowHideAnchor()
         {
-            bool shouldShowOverlay = ShowOverlayCheckBox?.IsChecked == true;
             bool isMonitoring = logMonitor != null;
             
-            // Show anchor when overlay is enabled but monitoring hasn't started
-            if (shouldShowOverlay && !isMonitoring)
+            // Show anchor when monitoring hasn't started yet
+            if (!isMonitoring)
             {
                 if (overlayAnchor == null)
                 {
@@ -423,7 +431,8 @@ namespace Rotatonator
                     EnableAutoCast = AutoCastCheckBox.IsChecked ?? false,
                     CastHotkey = HotkeyTextBox.Text,
                     AudioAlerts = audioAlertConfig,
-                    EnableDDRMode = DDRModeCheckBox.IsChecked ?? false
+                    EnableDDRMode = DDRModeCheckBox.IsChecked ?? false,
+                    EnableDDRSillyMode = DDRSillyModeCheckBox.IsChecked ?? false
                 };
 
                 if (isRefresh)
@@ -439,6 +448,7 @@ namespace Rotatonator
                     rotationManager.Config.CastHotkey = config.CastHotkey;
                     rotationManager.Config.AudioAlerts = audioAlertConfig;
                     rotationManager.Config.EnableDDRMode = DDRModeCheckBox.IsChecked ?? false;
+                    rotationManager.Config.EnableDDRSillyMode = DDRSillyModeCheckBox.IsChecked ?? false;
 
                     // Save settings
                     SaveCurrentSettings();
@@ -465,13 +475,21 @@ namespace Rotatonator
                     overlayAnchor = null;
                 }
 
-                // Create and show overlay at saved position
-                if (ShowOverlayCheckBox.IsChecked == true)
+                // Always create classic overlay (needed for DDR audio/score services)
+                overlayWindow = new OverlayWindow(rotationManager);
+                overlayWindow.Left = overlayPosition.X;
+                overlayWindow.Top = overlayPosition.Y;
+                
+                // Show classic overlay only if DDR mode is OFF
+                if (DDRModeCheckBox.IsChecked != true)
                 {
-                    overlayWindow = new OverlayWindow(rotationManager);
-                    overlayWindow.Left = overlayPosition.X;
-                    overlayWindow.Top = overlayPosition.Y;
                     overlayWindow.Show();
+                }
+                else if (DDRModeCheckBox.IsChecked == true)
+                {
+                    // Don't show classic overlay when DDR mode is enabled
+                    // But we still need to create it for the audio/score services
+                    overlayWindow.Visibility = Visibility.Hidden;
                 }
 
                 // Create DDR graphical overlay if enabled
@@ -599,14 +617,71 @@ namespace Rotatonator
                 ChainHealers = ChainHealersTextBox.Text,
                 ChainPrefix = ChainPrefixTextBox.Text,
                 ChainInterval = currentChainInterval,
-                ShowOverlay = ShowOverlayCheckBox.IsChecked ?? true,
+                ShowOverlay = true,
                 EnableVisualAlerts = VisualAlertsCheckBox.IsChecked ?? true,
                 EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false,
                 AudioAlerts = audioAlertConfig,
-                EnableDDRMode = DDRModeCheckBox.IsChecked ?? false
+                EnableDDRMode = DDRModeCheckBox.IsChecked ?? false,
+                EnableDDRSillyMode = DDRSillyModeCheckBox.IsChecked ?? false
             };
             
             SettingsManager.SaveSettings(settings);
+        }
+
+        private void MuteAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Toggle mute for both DDR overlay and audio service
+            if (ddrGraphicalOverlay != null)
+            {
+                ddrGraphicalOverlay.ToggleMute();
+            }
+            
+            // Also toggle mute for the overlay window's audio service
+            if (overlayWindow != null)
+            {
+                var ddrAudio = overlayWindow.GetDDRAudioService();
+                if (ddrAudio != null)
+                {
+                    ddrAudio.IsMuted = !ddrAudio.IsMuted;
+                }
+            }
+            
+            // Update button text
+            bool isMuted = ddrGraphicalOverlay?.IsMuted ?? false;
+            MuteAudioButton.Content = isMuted ? "🔇 Unmute Audio" : "🔊 Mute Audio";
+        }
+        
+        private void ExportDDRScoresButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ddrGraphicalOverlay == null)
+            {
+                ShowMessageBox("DDR mode is not active.", "Export Scores", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            
+            string scores = ddrGraphicalOverlay.ExportScores();
+            if (string.IsNullOrEmpty(scores))
+            {
+                ShowMessageBox("No scores to export yet.", "Export Scores", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            
+            try
+            {
+                Clipboard.SetText(scores);
+            }
+            catch (Exception ex)
+            {
+                ShowMessageBox($"Failed to copy to clipboard: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private void ResetDDRScoresButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ddrGraphicalOverlay == null)
+                return;
+            
+            ddrGraphicalOverlay.ResetScores();
         }
     }
 }

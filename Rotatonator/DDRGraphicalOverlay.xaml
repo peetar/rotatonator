@@ -4,13 +4,15 @@
         Title="DDR Graphical Overlay"
         Width="800"
         Height="400"
+        MinWidth="600"
+        MinHeight="300"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         Topmost="True"
         Closing="Window_Closing"
         ShowInTaskbar="False"
-        ResizeMode="NoResize">
+        ResizeMode="CanResize">
     
     <Window.Resources>
         <!-- Vibration animation for active casting -->
@@ -70,25 +72,14 @@
                 </Grid.RowDefinitions>
             </Grid>
             
-            <!-- Mute toggle button in bottom right -->
-            <Button x:Name="MuteButton"
-                    Content="🔊"
-                    FontSize="20"
-                    Width="40"
-                    Height="40"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Bottom"
-                    Margin="0,0,10,10"
-                    Background="#88000000"
-                    Foreground="White"
-                    BorderBrush="#FF00FF00"
-                    BorderThickness="2"
-                    Click="MuteButton_Click"
-                    Cursor="Hand">
-                <Button.Effect>
-                    <DropShadowEffect Color="#00FF00" BlurRadius="10" ShadowDepth="0" Opacity="0.6"/>
-                </Button.Effect>
-            </Button>
+            <!-- Resize grip in bottom-right corner (outside LanesContainer margin) -->
+            <ResizeGrip x:Name="ResizeGrip" 
+                       HorizontalAlignment="Right" 
+                       VerticalAlignment="Bottom"
+                       Margin="0,0,5,5"
+                       Opacity="1"
+                       Cursor="SizeNWSE"
+                       MouseLeftButtonDown="ResizeGrip_MouseLeftButtonDown"/>
         </Grid>
     </Border>
 </Window>
