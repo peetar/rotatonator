@@ -4,14 +4,16 @@ A Windows desktop application that enhances the EverQuest experience for healers
 
 ## Features
 
-- **Real-time Log Monitoring**: Monitors your EverQuest log file to detect when healers in the rotation cast Complete Heal
+- **Real-time Log Monitoring**: Monitors your EverQuest log file to detect Complete Heal (CH) casts using configured prefix format
 - **Transparent Overlay**: Non-interactive overlay window showing active CH casts with countdown timers
 - **Flexible Chain Configuration**: Define your rotation chain with any number of healers and set your position
 - **Adjustable Timing**: Slider to set chain interval from 1-10 seconds between heals
 - **Visual Feedback**: Color-coded timer bars showing each healer's cast progress
-- **Audio Alerts**: Optional beep notification when it's your turn to cast
-- **Auto-Cast**: Optional keyboard automation to automatically press your CH hotkey
+- **Audio Alerts**: Optional beep notification when it's your turn to cast (can be muted)
 - **Player Turn Warning**: Get advance notice (5 seconds) before your turn
+- **DDR Mode**: Optional graphical visualization with score tracking for casual gameplay
+- **Overlay Customization**: Resizable overlay window to fit your screen layout
+- **Score Management**: Export scores to clipboard for chat or reset with one click
 
 ## Requirements
 
@@ -21,7 +23,7 @@ A Windows desktop application that enhances the EverQuest experience for healers
 
 ## Installation
 
-1. Download the latest release
+1. Download the latest release (v1.4.0 or later) from [Releases](https://github.com/peetar/rotatonator/releases)
 2. Extract to a folder of your choice
 3. Run `Rotatonator.exe`
 
@@ -46,38 +48,64 @@ dotnet build
    - Enter healer names in rotation order, one per line
    - Enter your character name
    - Adjust chain interval slider to match your group's timing
+   - Ensure your group is using the standard prefix format (e.g., `D&D 111 CH - %t - %n`)
 
 3. **Enable Features**:
-   - Show Overlay: Displays transparent timer overlay
-   - Audio Alerts: Beeps when it's your turn
-   - Auto-Cast: Automatically presses your hotkey (specify which key)
+   - Classic Mode: Shows traditional countdown timer overlay
+   - DDR Mode: Shows graphical visualization with score tracking
+   - Audio Alerts: Beeps when it's your turn (can be muted)
+   - Silly Mode (v1.4+): Optional background music in DDR mode
 
 4. **Start Monitoring**: Click "Start Monitoring" to begin
 
 ## How It Works
 
-The application monitors your EverQuest log file for lines like:
+The application monitors your EverQuest log file for chat/prefix-based CH rotation lines. The expected format is:
 ```
-[Mon Jan 19 14:30:45 2026] Healer1 begins to cast a spell.
+<Prefix> 111 CH - TargetName - HealerName
 ```
 
-When a healer in your rotation casts, the app:
+Example:
+```
+D&D 111 CH - Paladin - Cleric1
+```
+
+When any healer casts (detected via this format), the app:
 1. Displays their cast with a 10-second countdown (CH cast time)
 2. Calculates when you should cast based on chain position and interval
 3. Provides visual warning 5 seconds before your turn
-4. Triggers audio/auto-cast when it's your turn
+4. Triggers audio alert when it's your turn
+
+**Important**: You must configure your EverQuest rotation to use the expected prefix format for the application to detect heals correctly.
+
+## v1.4 Features
+
+**Professional DDR Mode**:
+- Toggle between classic countdown view and graphical DDR visualization
+- In-progress heal tracking shows all casts descending toward their targets
+- Score tracking for each healer in DDR mode
+
+**Enhanced Controls**:
+- Resizable overlay - drag the corner to adjust size
+- Export scores to clipboard for easy sharing in chat
+- Reset scores with one click
+- Mute button for quick audio control
+
+**Optional Silly Mode** (v1.4+):
+- Enable background music and sound effects in DDR mode
+- Defaults to OFF for professional gameplay
+- Toggle anytime without restarting
 
 ## Configuration Tips
 
 - **Chain Interval**: Set this to match your group's agreed interval between heals (usually 6 seconds)
-- **Auto-Cast Safety**: Only enable auto-cast after testing the hotkey works correctly
 - **Overlay Position**: Drag the overlay to your preferred screen location on first launch
+- **Audio Feedback**: Use audio alerts to know when it's your turn instead of relying on visual cues alone
 
 ## Known Limitations
 
 - Requires EverQuest logging to be enabled (`/log on`)
-- Only detects casts from healers explicitly listed in your rotation
-- Auto-cast sends keystrokes globally (ensure EQ is the active window)
+- Out-of-rotation heals detected via macro format provide visual feedback but may not trigger audio if healer is not in configured chain
 
 ## License
 
