@@ -8,6 +8,7 @@ namespace Rotatonator
 {
     public partial class MainWindow : Window
     {
+
         private OverlayWindow? overlayWindow;
         private OverlayAnchor? overlayAnchor;
         private DDRGraphicalOverlay? ddrGraphicalOverlay;
@@ -17,13 +18,71 @@ namespace Rotatonator
         private AudioAlertConfig audioAlertConfig = new AudioAlertConfig();
         private int currentChainInterval = 6;
 
+        private void UpdateLogMonitorUI(bool isMonitoring)
+        {
+            LogMonitorIndicator.Visibility = isMonitoring ? Visibility.Visible : Visibility.Collapsed;
+            UpdateLogFileSize();
+        }
+
+        private void UpdateLogFileSize()
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(LogFilePathTextBox.Text) && File.Exists(LogFilePathTextBox.Text))
+                {
+                    var fileInfo = new FileInfo(LogFilePathTextBox.Text);
+                    double sizeMB = fileInfo.Length / (1024.0 * 1024.0);
+                    LogFileSizeTextBlock.Text = $"{sizeMB:F2} MB";
+                }
+                else
+                {
+                    LogFileSizeTextBlock.Text = "";
+                }
+            }
+            catch { LogFileSizeTextBlock.Text = ""; }
+        }
+
+        private void ArchiveLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(LogFilePathTextBox.Text) || !File.Exists(LogFilePathTextBox.Text))
+                {
+                    MessageBox.Show("No valid log file selected.", "Archive Log", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                string logPath = LogFilePathTextBox.Text;
+                string dir = Path.GetDirectoryName(logPath) ?? "";
+                string baseName = Path.GetFileNameWithoutExtension(logPath);
+                string ext = Path.GetExtension(logPath);
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string archiveName = $"{baseName}_archive_{timestamp}{ext}";
+                string archivePath = Path.Combine(dir, archiveName);
+                File.Copy(logPath, archivePath, true);
+                // Truncate the original log
+                using (var fs = new FileStream(logPath, FileMode.Truncate)) { }
+                MessageBox.Show($"Log archived as:\n{archiveName}\nLog file truncated.", "Archive Log", MessageBoxButton.OK, MessageBoxImage.Information);
+                UpdateLogFileSize();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to archive log: {ex.Message}", "Archive Log", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         public MainWindow()
         {
             InitializeComponent();
-            
+
             // Load saved settings
             LoadSavedSettings();
-            
+
+            // Update log file size display on startup
+            UpdateLogFileSize();
+
+            // Listen for log file path changes to update size
+            LogFilePathTextBox.TextChanged += (s, e) => UpdateLogFileSize();
+
             // Show anchor by default when overlay checkbox is checked
             ShowHideAnchor();
         }
@@ -176,16 +235,9 @@ namespace Rotatonator
         }
 
         private void ExportDelayOnly()
+
         {
-            try
-            {
-                string exportText = $"/rs Rotatonator set_delay: {currentChainInterval}";
-                Clipboard.SetText(exportText);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error exporting delay: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            // TODO: Implement if needed
         }
 
         private void ExportChainButton_Click(object sender, RoutedEventArgs e)
@@ -272,8 +324,8 @@ namespace Rotatonator
                     return;
                 }
 
-                // Build position string: 1, 22, 333, 4444, etc.
-                string positionString = new string((char)('0' + playerPosition), playerPosition);
+                // Build standardized 3-character position string: 111, 222, 333, ... AAA, BBB
+                string positionString = PositionHelper.PositionToString(playerPosition);
 
                 // Build CH macro string
                 string chString = $"/rs {prefix} {positionString} CH - %t - %n";
@@ -284,6 +336,55 @@ namespace Rotatonator
             catch (Exception ex)
             {
                 MessageBox.Show($"Error exporting CH string: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportAppendMacroButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var playerName = PlayerNameTextBox.Text.Trim();
+                if (string.IsNullOrWhiteSpace(playerName))
+                {
+                    MessageBox.Show("Please enter your character name.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var healers = ChainHealersTextBox.Text
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(h => h.Trim())
+                    .Where(h => !string.IsNullOrWhiteSpace(h))
+                    .ToList();
+
+                if (healers.Count == 0)
+                {
+                    MessageBox.Show("No healers in the chain.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                int playerPosition = -1;
+                for (int i = 0; i < healers.Count; i++)
+                {
+                    if (healers[i].Equals(playerName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        playerPosition = i + 1;
+                        break;
+                    }
+                }
+
+                if (playerPosition == -1)
+                {
+                    MessageBox.Show($"Your character '{playerName}' is not in the healer list.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                string appendMacro = $"rotat:{playerPosition}, %t";
+                Clipboard.SetText(appendMacro);
+                MessageBox.Show($"Append macro copied to clipboard!\n\n{appendMacro}", "Export Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error exporting append macro: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -386,6 +487,7 @@ namespace Rotatonator
 
         private void StartButton_Click(object sender, RoutedEventArgs e)
         {
+            UpdateLogMonitorUI(true);
             // Check if we're refreshing settings vs starting fresh
             bool isRefresh = rotationManager != null && logMonitor != null;
 
@@ -527,6 +629,8 @@ namespace Rotatonator
 
         private void StopMonitoring()
         {
+            UpdateLogMonitorUI(false);
+            UpdateLogFileSize();
             logMonitor?.Stop();
             logMonitor = null;
 

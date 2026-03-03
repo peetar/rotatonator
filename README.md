@@ -5,6 +5,7 @@ A Windows desktop application that enhances the EverQuest experience for healers
 ## Features
 
 - **Real-time Log Monitoring**: Monitors your EverQuest log file to detect Complete Heal (CH) casts using configured prefix format
+- **Append Macro Detection (v1.5)**: Detects `rotat:<number>,<target>` tokens anywhere in log lines (no whitespace), so it can be appended to existing CH macros
 - **Transparent Overlay**: Non-interactive overlay window showing active CH casts with countdown timers
 - **Flexible Chain Configuration**: Define your rotation chain with any number of healers and set your position
 - **Adjustable Timing**: Slider to set chain interval from 1-10 seconds between heals
@@ -14,6 +15,7 @@ A Windows desktop application that enhances the EverQuest experience for healers
 - **DDR Mode**: Optional graphical visualization with score tracking for casual gameplay
 - **Overlay Customization**: Resizable overlay window to fit your screen layout
 - **Score Management**: Export scores to clipboard for chat or reset with one click
+- **Log Utility Controls**: Live monitoring indicator, log file size display, and one-click archive/truncate for large logs
 
 ## Requirements
 
@@ -58,6 +60,7 @@ dotnet build
 
 4. **Share Configuration**:
    - **Adjust Chain Timing**: Click the +/- buttons to adjust chain interval - this automatically copies your current rotation config to clipboard for easy sharing in raid say
+   - **Export Append Macro**: Click "Export append macro" to copy `rotat:<your_position>, %t` (example: `rotat:3, %t`) and append it to any existing CH macro or use standalone
    - **Export Scores** (DDR Mode): Click "Export Scores" to copy healer scores in chat format (`/rs HealerName: Score, ...`) ready to paste
 
 5. **Start Monitoring**: Click "Start Monitoring" to begin
@@ -72,6 +75,11 @@ The application monitors your EverQuest log file for chat/prefix-based CH rotati
 Example:
 ```
 D&D 111 CH - Paladin - Cleric1
+```
+
+It also supports append tokens embedded in any macro line or standalone:
+```
+rotat:3, %t
 ```
 
 When any healer casts (detected via this format), the app:

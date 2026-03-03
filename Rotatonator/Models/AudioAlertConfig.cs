@@ -10,6 +10,9 @@ namespace Rotatonator
         public bool AnnounceHealerName { get; set; } = false;
         public bool AnnounceTargetName { get; set; } = false;
 
+        // Alert if an NPC is the target of a complete heal
+        public bool AlertOnNpcCompleteHeal { get; set; } = true;
+
         // On my turn alerts
         public bool AnnounceYoureNext { get; set; } = false;
         public bool AnnounceCastNow { get; set; } = false;

@@ -90,9 +90,9 @@ namespace Rotatonator
             }
         }
 
-        public void OnHealCast(string healerName, string targetName = "")
+        public void OnHealCast(string healerName, string targetName = "", DateTime? adjustedCastTime = null)
         {
-            var castTime = DateTime.Now;
+            var castTime = adjustedCastTime ?? DateTime.Now;
             bool isPlayerCast = !string.IsNullOrWhiteSpace(Config.PlayerName) && 
                                healerName.Equals(Config.PlayerName, StringComparison.OrdinalIgnoreCase);
 

@@ -18,6 +18,7 @@ namespace Rotatonator
             YoureNextCheckBox.IsChecked = currentConfig.AnnounceYoureNext;
             CastNowCheckBox.IsChecked = currentConfig.AnnounceCastNow;
             AudioBeepCheckBox.IsChecked = currentConfig.EnableAudioBeep;
+            NpcHealAlertCheckBox.IsChecked = currentConfig.AlertOnNpcCompleteHeal;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -29,6 +30,7 @@ namespace Rotatonator
             Config.AnnounceYoureNext = YoureNextCheckBox.IsChecked ?? false;
             Config.AnnounceCastNow = CastNowCheckBox.IsChecked ?? false;
             Config.EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false;
+            Config.AlertOnNpcCompleteHeal = NpcHealAlertCheckBox.IsChecked ?? false;
 
             DialogResult = true;
             Close();

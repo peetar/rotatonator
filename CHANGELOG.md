@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - Unreleased
+
+### Added
+- **Append CH Macro Support**: Detects `rotat:<number_in_chain>, <target>` in any log line, allowing it to be appended to existing CH macros or used standalone.
+- **Export Append Macro Button**: New "Export append macro" action in Chain Configuration that copies `rotat:<your_position>, %t`.
+- **Append Macro Help Text**: In-app guidance showing how to append `rotat:3, %t` to existing macros.
+- **Log Utility Controls**: Log monitor indicator, log file size display, and archive/truncate button in main UI.
+- **NPC Target Audio Alert Option**: Configurable "Audio alert if NPC is CH target" setting in audio alert configuration.
+
+### Changed
+- Hardened append macro token parsing with optional whitespace after comma and handle inline use in existing macro lines or standalone.
+- Updated README usage/examples for append macro workflow.
+
+### Fixed
+- Stabilized `MainWindow.xaml.cs` after rewind by restoring required fields/event handlers and removing duplicate declarations.
+- Restored missing monitor UI update flow used during start/stop monitoring state changes.
+
 ## [1.4.0] - 2026-02-11
 
 ### Added
@@ -78,7 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-(Future v1.5 features will be added here as they're developed)
+(Post-v1.5 items go here)
 
 ---
 
