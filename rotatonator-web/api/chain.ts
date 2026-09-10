@@ -14,10 +14,31 @@ const memoryStore = (globalThis as unknown as { __rotatonator_chain_store?: Map<
   .__rotatonator_chain_store ??= new Map<string, ChainData>();
 
 function getKvConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Check common environment variable names used by Vercel and Upstash
+  let url =
+    process.env.KV_REST_API_URL ||
+    process.env.UPSTASH_REDIS_REST_URL;
+  let token =
+    process.env.KV_REST_API_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  // Fallback: search process.env for any keys ending in REST_URL / REST_TOKEN
+  if (!url) {
+    const urlKey = Object.keys(process.env).find(
+      (k) => k.endsWith('_REST_API_URL') || k.endsWith('_REST_URL')
+    );
+    if (urlKey) url = process.env[urlKey];
+  }
+
+  if (!token) {
+    const tokenKey = Object.keys(process.env).find(
+      (k) => k.endsWith('_REST_API_TOKEN') || k.endsWith('_REST_TOKEN')
+    );
+    if (tokenKey) token = process.env[tokenKey];
+  }
+
   if (url && token) {
-    return { url, token };
+    return { url: url.trim().replace(/\/$/, ''), token: token.trim() };
   }
   return null;
 }
@@ -85,9 +106,16 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const prefix = (req.query?.prefix as string)?.trim();
     if (!prefix) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required query parameter: prefix',
+      const kv = getKvConfig();
+      const detectedKeys = Object.keys(process.env).filter((k) =>
+        /REST|UPSTASH|KV|REDIS/i.test(k)
+      );
+      return res.status(200).json({
+        status: 'ok',
+        storage: kv ? 'upstash_connected' : 'in_memory_fallback',
+        kvUrlConfigured: Boolean(kv?.url),
+        detectedStorageEnvVars: detectedKeys,
+        usage: 'Use GET /api/chain?prefix=<prefix> to retrieve, or POST /api/chain to save.',
       });
     }
 
@@ -159,13 +187,14 @@ export default async function handler(req: any, res: any) {
       memoryStore.set(normPrefix, chainData);
 
       // Save to KV if configured
-      await saveChainToKv(normPrefix, chainData);
+      const kvSaved = await saveChainToKv(normPrefix, chainData);
 
       return res.status(200).json({
         success: true,
         prefix,
         timestamp,
         healersCount: chainData.healers.length,
+        storage: kvSaved ? 'upstash' : 'in_memory',
       });
     } catch (err: any) {
       return res.status(400).json({
