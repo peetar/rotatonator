@@ -17,6 +17,9 @@ namespace Rotatonator
         private Point overlayPosition = new Point(100, 100);
         private AudioAlertConfig audioAlertConfig = new AudioAlertConfig();
         private int currentChainInterval = 6;
+        private System.Windows.Threading.DispatcherTimer? autoDetectTimer;
+        private readonly CloudSyncService cloudSyncService = new CloudSyncService();
+        private bool isInitializing = true;
 
         private void UpdateLogMonitorUI(bool isMonitoring)
         {
@@ -77,14 +80,32 @@ namespace Rotatonator
             // Load saved settings
             LoadSavedSettings();
 
+            // Check if there is a more recently modified log file in the directory
+            CheckForActiveCharacterChange();
+
             // Update log file size display on startup
             UpdateLogFileSize();
 
             // Listen for log file path changes to update size
             LogFilePathTextBox.TextChanged += (s, e) => UpdateLogFileSize();
 
-            // Show anchor by default when overlay checkbox is checked
-            ShowHideAnchor();
+            // Show anchor by default when overlay checkbox is checked (after main window is loaded)
+            Loaded += (s, e) => ShowHideAnchor();
+
+            // Start auto-detect timer to monitor directory for character switches (runs every 3 seconds)
+            autoDetectTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(3)
+            };
+            autoDetectTimer.Tick += (s, e) => CheckForActiveCharacterChange();
+            autoDetectTimer.Start();
+
+            // Wire up cloud sync service events
+            cloudSyncService.ChainUpdatedFromCloud += OnChainUpdatedFromCloud;
+            cloudSyncService.SyncStatusChanged += OnCloudSyncStatusChanged;
+            ChainPrefixTextBox.TextChanged += (s, e) => { cloudSyncService.CurrentPrefix = ChainPrefixTextBox.Text.Trim(); };
+
+            isInitializing = false;
         }
 
         private void LoadSavedSettings()
@@ -99,31 +120,36 @@ namespace Rotatonator
             else
             {
                 // Try to find EQ log directory if no saved path
-                string defaultLogPath = FindEQLogDirectory();
-                if (!string.IsNullOrEmpty(defaultLogPath))
+                string? defaultLogDir = FindEQLogDirectoryPath();
+                if (!string.IsNullOrEmpty(defaultLogDir))
                 {
-                    LogFilePathTextBox.Text = defaultLogPath;
-                }
-            }
-            
-            // Auto-detect character name from log filename if not saved
-            if (!string.IsNullOrEmpty(LogFilePathTextBox.Text))
-            {
-                string filename = Path.GetFileNameWithoutExtension(LogFilePathTextBox.Text);
-                if (filename.StartsWith("eqlog_", StringComparison.OrdinalIgnoreCase))
-                {
-                    string[] parts = filename.Substring(6).Split('_');
-                    if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
+                    string? latest = GetLatestLogFileInDirectory(defaultLogDir);
+                    if (!string.IsNullOrEmpty(latest))
                     {
-                        PlayerNameTextBox.Text = string.IsNullOrEmpty(settings.PlayerName) ? parts[0] : settings.PlayerName;
+                        LogFilePathTextBox.Text = latest;
                     }
                 }
             }
             
-            // Load other settings
-            if (!string.IsNullOrEmpty(settings.PlayerName))
+            // Auto-detect character name from log filename
+            if (!string.IsNullOrEmpty(LogFilePathTextBox.Text))
+            {
+                string? detectedName = ExtractCharacterNameFromLogPath(LogFilePathTextBox.Text);
+                if (!string.IsNullOrEmpty(detectedName))
+                {
+                    PlayerNameTextBox.Text = detectedName;
+                }
+                else if (!string.IsNullOrEmpty(settings.PlayerName))
+                {
+                    PlayerNameTextBox.Text = settings.PlayerName;
+                }
+            }
+            else if (!string.IsNullOrEmpty(settings.PlayerName))
+            {
                 PlayerNameTextBox.Text = settings.PlayerName;
+            }
             
+            // Load other settings
             if (!string.IsNullOrEmpty(settings.ChainHealers))
                 ChainHealersTextBox.Text = settings.ChainHealers;
             
@@ -134,6 +160,22 @@ namespace Rotatonator
             AudioBeepCheckBox.IsChecked = settings.EnableAudioBeep;
             DDRModeCheckBox.IsChecked = settings.EnableDDRMode;
             DDRSillyModeCheckBox.IsChecked = settings.EnableDDRSillyMode;
+
+            // Load cloud sync and chain updated sound settings
+            CloudSyncCheckBox.IsChecked = settings.EnableCloudSync;
+            cloudSyncService.IsEnabled = settings.EnableCloudSync;
+            if (!string.IsNullOrEmpty(settings.CloudSyncUrl))
+            {
+                CloudSyncUrlTextBox.Text = settings.CloudSyncUrl;
+                cloudSyncService.BaseUrl = settings.CloudSyncUrl;
+            }
+            PlaySoundOnChainUpdateCheckBox.IsChecked = settings.PlaySoundOnChainUpdate;
+            SoundService.PlaySoundOnChainUpdate = settings.PlaySoundOnChainUpdate;
+            cloudSyncService.CurrentPrefix = settings.ChainPrefix;
+            if (settings.EnableCloudSync)
+            {
+                cloudSyncService.StartPolling();
+            }
             
             // Load audio alert config
             if (settings.AudioAlerts != null)
@@ -154,30 +196,172 @@ namespace Rotatonator
             }
         }
 
-        private string FindEQLogDirectory()
+        private static string? ExtractCharacterNameFromLogPath(string logPath)
         {
-            // Common EQ installation paths
+            if (string.IsNullOrWhiteSpace(logPath))
+                return null;
+
+            if (!logPath.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string filename = Path.GetFileNameWithoutExtension(logPath);
+            if (!filename.StartsWith("eqlog_", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            // Exclude archive and backup files
+            if (filename.Contains("_archive_", StringComparison.OrdinalIgnoreCase) ||
+                filename.EndsWith(".bak", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            string withoutPrefix = filename.Substring(6);
+            string[] parts = withoutPrefix.Split('_');
+            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
+            {
+                return parts[0];
+            }
+
+            return null;
+        }
+
+        private static string? FindEQLogDirectoryPath()
+        {
             string[] possiblePaths = new[]
             {
+                @"C:\EverQuest\Logs",
                 @"C:\Program Files (x86)\Sony\EverQuest\Logs",
                 @"C:\Program Files\Sony\EverQuest\Logs",
-                @"C:\EverQuest\Logs",
-                @"C:\Games\EverQuest\Logs"
+                @"C:\Games\EverQuest\Logs",
+                @"C:\Sony\EverQuest\Logs",
+                @"D:\EverQuest\Logs",
+                @"D:\Games\EverQuest\Logs"
             };
 
             foreach (var path in possiblePaths)
             {
                 if (Directory.Exists(path))
                 {
-                    var logFiles = Directory.GetFiles(path, "eqlog_*.txt");
-                    if (logFiles.Length > 0)
-                    {
-                        return logFiles.OrderByDescending(f => new FileInfo(f).LastWriteTime).First();
-                    }
+                    return path;
                 }
             }
 
-            return string.Empty;
+            return null;
+        }
+
+        private string? GetCurrentLogDirectory()
+        {
+            string currentText = LogFilePathTextBox.Text?.Trim() ?? "";
+            if (!string.IsNullOrEmpty(currentText))
+            {
+                string? dir = Path.GetDirectoryName(currentText);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    return dir;
+            }
+
+            var settings = SettingsManager.LoadSettings();
+            if (!string.IsNullOrEmpty(settings.LogFilePath))
+            {
+                string? dir = Path.GetDirectoryName(settings.LogFilePath);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                    return dir;
+            }
+
+            return FindEQLogDirectoryPath();
+        }
+
+        private static string? GetLatestLogFileInDirectory(string directoryPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath))
+                    return null;
+
+                var dirInfo = new DirectoryInfo(directoryPath);
+                var files = dirInfo.GetFiles("eqlog_*.txt");
+
+                var latestFile = files
+                    .Where(f => !f.Name.Contains("_archive_", StringComparison.OrdinalIgnoreCase) &&
+                                !f.Name.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) &&
+                                !string.IsNullOrEmpty(ExtractCharacterNameFromLogPath(f.FullName)))
+                    .OrderByDescending(f => f.LastWriteTimeUtc)
+                    .FirstOrDefault();
+
+                return latestFile?.FullName;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AutoDetect] Error finding latest log: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void CheckForActiveCharacterChange()
+        {
+            string? logDir = GetCurrentLogDirectory();
+            if (string.IsNullOrEmpty(logDir))
+                return;
+
+            string? latestLogFile = GetLatestLogFileInDirectory(logDir);
+            if (string.IsNullOrEmpty(latestLogFile))
+                return;
+
+            string currentLogFile = LogFilePathTextBox.Text?.Trim() ?? "";
+
+            if (!string.Equals(latestLogFile, currentLogFile, StringComparison.OrdinalIgnoreCase))
+            {
+                SwitchActiveCharacter(latestLogFile);
+            }
+        }
+
+        private void SwitchActiveCharacter(string newLogPath)
+        {
+            string? newCharName = ExtractCharacterNameFromLogPath(newLogPath);
+            if (string.IsNullOrWhiteSpace(newCharName))
+                return;
+
+            System.Diagnostics.Debug.WriteLine($"[AutoDetect] Switching active character to {newCharName} ({newLogPath})");
+
+            LogFilePathTextBox.Text = newLogPath;
+            PlayerNameTextBox.Text = newCharName;
+            UpdateLogFileSize();
+
+            if (logMonitor != null && rotationManager != null)
+            {
+                // Stop previous log monitoring
+                logMonitor.Stop();
+
+                // Update rotation manager player name and reset any active turn alerts
+                rotationManager.Config.PlayerName = newCharName;
+                rotationManager.ResetPlayerTurn();
+
+                // Start new log monitor for the new character's log file
+                logMonitor = new LogMonitor(newLogPath, rotationManager);
+                logMonitor.Start();
+
+                // Reset overlay alerts and update overlay title/position
+                overlayWindow?.ResetAlerts();
+                overlayWindow?.UpdateChainInfo();
+
+                // Save updated settings
+                SaveCurrentSettings();
+
+                int playerPos = rotationManager.GetPlayerPosition();
+                if (playerPos >= 0)
+                {
+                    StatusTextBlock.Text = $"Active character changed to {newCharName}. Monitoring active (Position: {playerPos + 1} of {rotationManager.Config.Healers.Count}).";
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
+                }
+                else
+                {
+                    StatusTextBlock.Text = $"Active character changed to {newCharName}. Monitoring active (Not in healer chain).";
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.LightSkyBlue;
+                }
+            }
+            else
+            {
+                SaveCurrentSettings();
+                StatusTextBlock.Text = $"Active character detected: {newCharName}. Ready to start.";
+                StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
+            }
         }
 
         private void BrowseLogButton_Click(object sender, RoutedEventArgs e)
@@ -190,19 +374,7 @@ namespace Rotatonator
 
             if (dialog.ShowDialog() == true)
             {
-                LogFilePathTextBox.Text = dialog.FileName;
-                
-                // Auto-detect character name from log filename
-                // Format: eqlog_CharacterName_ServerName.txt
-                string filename = Path.GetFileNameWithoutExtension(dialog.FileName);
-                if (filename.StartsWith("eqlog_", StringComparison.OrdinalIgnoreCase))
-                {
-                    string[] parts = filename.Substring(6).Split('_');
-                    if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
-                    {
-                        PlayerNameTextBox.Text = parts[0];
-                    }
-                }
+                SwitchActiveCharacter(dialog.FileName);
             }
         }
 
@@ -237,7 +409,15 @@ namespace Rotatonator
         private void ExportDelayOnly()
 
         {
-            // TODO: Implement if needed
+            try
+            {
+                int delay = currentChainInterval;
+                string exportText = $"/rs Rotatonator set_delay: {delay}";
+                Clipboard.SetText(exportText);
+            }
+            catch
+            {
+            }
         }
 
         private void ExportChainButton_Click(object sender, RoutedEventArgs e)
@@ -269,6 +449,18 @@ namespace Rotatonator
                 string exportText = $"/rs Rotatonator set_chain: {chainParts}, set_delay: {delay}";
 
                 Clipboard.SetText(exportText);
+
+                // If Cloud Sync is enabled, push chain to the web API
+                if (CloudSyncCheckBox.IsChecked == true)
+                {
+                    string prefix = ChainPrefixTextBox.Text.Trim();
+                    string senderName = PlayerNameTextBox.Text.Trim();
+                    _ = System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        await cloudSyncService.PushChainAsync(prefix, healers, delay, senderName);
+                    });
+                }
+
                 MessageBox.Show($"Chain configuration copied to clipboard!\n\n{exportText}", "Export Successful", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -663,6 +855,8 @@ namespace Rotatonator
 
         protected override void OnClosed(EventArgs e)
         {
+            autoDetectTimer?.Stop();
+            cloudSyncService.Dispose();
             StopMonitoring();
             overlayAnchor?.Close();
             base.OnClosed(e);
@@ -679,6 +873,9 @@ namespace Rotatonator
                 
                 // Save imported settings
                 SaveCurrentSettings();
+
+                // Play chain updated sound notification
+                SoundService.PlayChainUpdatedSound();
                 
                 StatusTextBlock.Text = $"Chain imported! {e.Healers.Count} healers, {e.Delay}s interval. Monitoring restarted.";
                 StatusTextBlock.Foreground = System.Windows.Media.Brushes.LimeGreen;
@@ -686,6 +883,81 @@ namespace Rotatonator
                 // Update overlay if it exists
                 overlayWindow?.UpdateChainInfo();
             });
+        }
+
+        private void OnChainUpdatedFromCloud(object? sender, ChainImportEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                // Update UI with imported chain
+                ChainHealersTextBox.Text = string.Join(Environment.NewLine, e.Healers);
+                currentChainInterval = e.Delay;
+                UpdateChainIntervalDisplay();
+
+                // Update active rotation manager if running
+                if (rotationManager != null)
+                {
+                    rotationManager.Config.Healers = e.Healers;
+                    rotationManager.Config.ChainInterval = TimeSpan.FromSeconds(e.Delay);
+                }
+                
+                // Save imported settings
+                SaveCurrentSettings();
+
+                // Play chain updated sound notification
+                SoundService.PlayChainUpdatedSound();
+                
+                StatusTextBlock.Text = $"Cloud chain update received! {e.Healers.Count} healers, {e.Delay}s interval.";
+                StatusTextBlock.Foreground = System.Windows.Media.Brushes.DeepSkyBlue;
+                
+                // Update overlay if it exists
+                overlayWindow?.UpdateChainInfo();
+            });
+        }
+
+        private void OnCloudSyncStatusChanged(object? sender, string status)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                Console.WriteLine($"[CloudSync] {status}");
+            });
+        }
+
+        private void CloudSyncCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            bool isChecked = CloudSyncCheckBox.IsChecked == true;
+            cloudSyncService.IsEnabled = isChecked;
+            cloudSyncService.CurrentPrefix = ChainPrefixTextBox?.Text?.Trim() ?? "D&D";
+            cloudSyncService.BaseUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator.vercel.app";
+            if (isChecked)
+            {
+                cloudSyncService.StartPolling();
+            }
+            else
+            {
+                cloudSyncService.StopPolling();
+            }
+            SaveCurrentSettings();
+        }
+
+        private void PlaySoundOnChainUpdateCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            SoundService.PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox.IsChecked == true;
+            SaveCurrentSettings();
+        }
+
+        private void CloudSyncUrlTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            if (cloudSyncService != null && CloudSyncUrlTextBox != null)
+            {
+                cloudSyncService.BaseUrl = CloudSyncUrlTextBox.Text.Trim();
+            }
         }
 
         private void HideDDROverlayForDialog()
@@ -714,19 +986,24 @@ namespace Rotatonator
 
         private void SaveCurrentSettings()
         {
+            if (isInitializing) return;
+
             var settings = new AppSettings
             {
-                LogFilePath = LogFilePathTextBox.Text,
-                PlayerName = PlayerNameTextBox.Text,
-                ChainHealers = ChainHealersTextBox.Text,
-                ChainPrefix = ChainPrefixTextBox.Text,
+                LogFilePath = LogFilePathTextBox?.Text ?? "",
+                PlayerName = PlayerNameTextBox?.Text ?? "",
+                ChainHealers = ChainHealersTextBox?.Text ?? "",
+                ChainPrefix = ChainPrefixTextBox?.Text ?? "D&D",
                 ChainInterval = currentChainInterval,
                 ShowOverlay = true,
-                EnableVisualAlerts = VisualAlertsCheckBox.IsChecked ?? true,
-                EnableAudioBeep = AudioBeepCheckBox.IsChecked ?? false,
+                EnableVisualAlerts = VisualAlertsCheckBox?.IsChecked ?? true,
+                EnableAudioBeep = AudioBeepCheckBox?.IsChecked ?? false,
                 AudioAlerts = audioAlertConfig,
-                EnableDDRMode = DDRModeCheckBox.IsChecked ?? false,
-                EnableDDRSillyMode = DDRSillyModeCheckBox.IsChecked ?? false
+                EnableDDRMode = DDRModeCheckBox?.IsChecked ?? false,
+                EnableDDRSillyMode = DDRSillyModeCheckBox?.IsChecked ?? false,
+                EnableCloudSync = CloudSyncCheckBox?.IsChecked ?? false,
+                CloudSyncUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator.vercel.app",
+                PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox?.IsChecked ?? true
             };
             
             SettingsManager.SaveSettings(settings);

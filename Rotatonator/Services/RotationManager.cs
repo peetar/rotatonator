@@ -31,6 +31,15 @@ namespace Rotatonator
                 h.Equals(Config.PlayerName, StringComparison.OrdinalIgnoreCase));
         }
 
+        public void ResetPlayerTurn()
+        {
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                playerTurnTimer?.Stop();
+                playerTurnTimer = null;
+            });
+        }
+
         public void OnChainImport(string chainData, int delay)
         {
             try

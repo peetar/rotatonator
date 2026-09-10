@@ -74,3 +74,13 @@ $RECYCLE.BIN/
 
 # Mac
 .DS_Store
+
+# Vercel
+.vercel/
+**/.vercel/
+
+# Future web app artifacts
+rotatonator-web/node_modules/
+rotatonator-web/.next/
+rotatonator-web/dist/
+rotatonator-web/build/

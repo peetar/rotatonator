@@ -86,6 +86,17 @@ namespace Rotatonator
             ChainInfoTextBlock.Text = $"Chain: {config.Healers.Count} healers | Your position: {position} | Interval: {config.ChainInterval.TotalSeconds}s";
         }
 
+        public void ResetAlerts()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                warningFlashTimer?.Stop();
+                castNowResetTimer?.Stop();
+                OverlayBorder.Background = new SolidColorBrush(Color.FromArgb(204, 0, 0, 0));
+                NextWarningTextBlock.Visibility = Visibility.Collapsed;
+            });
+        }
+
         private void OnHealCastDetected(object? sender, HealCastEventArgs e)
         {
             Dispatcher.Invoke(() =>
