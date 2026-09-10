@@ -164,10 +164,15 @@ namespace Rotatonator
             // Load cloud sync and chain updated sound settings
             CloudSyncCheckBox.IsChecked = settings.EnableCloudSync;
             cloudSyncService.IsEnabled = settings.EnableCloudSync;
-            if (!string.IsNullOrEmpty(settings.CloudSyncUrl))
+            if (!string.IsNullOrEmpty(settings.CloudSyncUrl) && !settings.CloudSyncUrl.StartsWith("https://rotatonator.vercel.app", StringComparison.OrdinalIgnoreCase))
             {
                 CloudSyncUrlTextBox.Text = settings.CloudSyncUrl;
                 cloudSyncService.BaseUrl = settings.CloudSyncUrl;
+            }
+            else
+            {
+                CloudSyncUrlTextBox.Text = "https://rotatonator-web.vercel.app/";
+                cloudSyncService.BaseUrl = "https://rotatonator-web.vercel.app/";
             }
             PlaySoundOnChainUpdateCheckBox.IsChecked = settings.PlaySoundOnChainUpdate;
             SoundService.PlaySoundOnChainUpdate = settings.PlaySoundOnChainUpdate;
@@ -930,7 +935,7 @@ namespace Rotatonator
             bool isChecked = CloudSyncCheckBox.IsChecked == true;
             cloudSyncService.IsEnabled = isChecked;
             cloudSyncService.CurrentPrefix = ChainPrefixTextBox?.Text?.Trim() ?? "D&D";
-            cloudSyncService.BaseUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator.vercel.app";
+            cloudSyncService.BaseUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator-web.vercel.app/";
             if (isChecked)
             {
                 cloudSyncService.StartPolling();
@@ -1002,7 +1007,7 @@ namespace Rotatonator
                 EnableDDRMode = DDRModeCheckBox?.IsChecked ?? false,
                 EnableDDRSillyMode = DDRSillyModeCheckBox?.IsChecked ?? false,
                 EnableCloudSync = CloudSyncCheckBox?.IsChecked ?? false,
-                CloudSyncUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator.vercel.app",
+                CloudSyncUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator-web.vercel.app/",
                 PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox?.IsChecked ?? true
             };
             

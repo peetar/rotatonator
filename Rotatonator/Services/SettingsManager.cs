@@ -18,7 +18,7 @@ namespace Rotatonator
         public bool EnableDDRMode { get; set; } = false;
         public bool EnableDDRSillyMode { get; set; } = false;
         public bool EnableCloudSync { get; set; } = false;
-        public string CloudSyncUrl { get; set; } = "https://rotatonator.vercel.app";
+        public string CloudSyncUrl { get; set; } = "https://rotatonator-web.vercel.app/";
         public bool PlaySoundOnChainUpdate { get; set; } = true;
     }
 

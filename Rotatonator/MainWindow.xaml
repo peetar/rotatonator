@@ -188,7 +188,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Label Content="Server URL:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBox x:Name="CloudSyncUrlTextBox" Grid.Column="1" Text="https://rotatonator.vercel.app" VerticalAlignment="Center" TextChanged="CloudSyncUrlTextBox_TextChanged"/>
+                            <TextBox x:Name="CloudSyncUrlTextBox" Grid.Column="1" Text="https://rotatonator-web.vercel.app/" VerticalAlignment="Center" TextChanged="CloudSyncUrlTextBox_TextChanged"/>
                         </Grid>
 
                         <Separator Background="#444444" Margin="0,5,0,10"/>

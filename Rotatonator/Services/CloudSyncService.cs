@@ -55,7 +55,7 @@ namespace Rotatonator
         public event EventHandler<string>? SyncStatusChanged;
 
         public bool IsEnabled { get; set; } = false;
-        public string BaseUrl { get; set; } = "https://rotatonator.vercel.app";
+        public string BaseUrl { get; set; } = "https://rotatonator-web.vercel.app/";
         public string CurrentPrefix { get; set; } = "D&D";
         public long LastAppliedTimestamp { get; set; } = 0;
 
