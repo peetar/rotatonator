@@ -25,6 +25,9 @@ namespace Rotatonator
         private Regex? chainImportRegex;
         private Regex? appendMacroRegex;
 
+        public event EventHandler<string>? PvpEventDetected;
+        public event EventHandler<string>? RaidKillEventDetected;
+
         // EQ log format: [Day Mon DD HH:MM:SS YYYY] Message
         // Custom CH rotation format: [timestamp] CharacterName says, 'PREFIX ### CH ...'
         // Example: [Mon Jan 19 14:30:45 2026] Healer1 says, 'D&D 333 CH - %t - %n'
@@ -161,6 +164,35 @@ namespace Rotatonator
 
         private void ProcessLogLine(string line)
         {
+            try
+            {
+                // Check for PVP events (e.g. "[PVP] Caedis of <Haven> has died to...")
+                if (line.Contains("[PVP]", StringComparison.OrdinalIgnoreCase))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LogMonitor] PVP event detected: {line}");
+                    PvpEventDetected?.Invoke(this, line);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LogMonitor] Error invoking PvpEventDetected: {ex}");
+            }
+
+            try
+            {
+                // Check for raid kill events (e.g. "Druzzil Ro tells the guild, '...' has killed ...")
+                if (line.Contains("Druzzil Ro tells the guild", StringComparison.OrdinalIgnoreCase) ||
+                    (line.Contains("tells the guild", StringComparison.OrdinalIgnoreCase) && line.Contains("has killed", StringComparison.OrdinalIgnoreCase)))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[LogMonitor] Raid Kill event detected: {line}");
+                    RaidKillEventDetected?.Invoke(this, line);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LogMonitor] Error invoking RaidKillEventDetected: {ex}");
+            }
+
             // Check for chain import message first
             if (chainImportRegex != null)
             {

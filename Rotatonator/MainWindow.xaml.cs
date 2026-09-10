@@ -19,6 +19,7 @@ namespace Rotatonator
         private int currentChainInterval = 6;
         private System.Windows.Threading.DispatcherTimer? autoDetectTimer;
         private readonly CloudSyncService cloudSyncService = new CloudSyncService();
+        private readonly DiscordWebhookService discordWebhookService = new DiscordWebhookService();
         private bool isInitializing = true;
 
         private void UpdateLogMonitorUI(bool isMonitoring)
@@ -181,6 +182,14 @@ namespace Rotatonator
             {
                 cloudSyncService.StartPolling();
             }
+
+            // Load Discord webhook settings
+            DiscordWebhookUrlTextBox.Text = settings.DiscordWebhookUrl ?? "";
+            discordWebhookService.WebhookUrl = settings.DiscordWebhookUrl ?? "";
+            PublishPvpToDiscordCheckBox.IsChecked = settings.PublishPvpToDiscord;
+            discordWebhookService.PublishPvp = settings.PublishPvpToDiscord;
+            PublishRaidKillsToDiscordCheckBox.IsChecked = settings.PublishRaidKillsToDiscord;
+            discordWebhookService.PublishRaidKills = settings.PublishRaidKillsToDiscord;
             
             // Load audio alert config
             if (settings.AudioAlerts != null)
@@ -340,6 +349,8 @@ namespace Rotatonator
 
                 // Start new log monitor for the new character's log file
                 logMonitor = new LogMonitor(newLogPath, rotationManager);
+                logMonitor.PvpEventDetected += OnPvpEventDetected;
+                logMonitor.RaidKillEventDetected += OnRaidKillEventDetected;
                 logMonitor.Start();
 
                 // Reset overlay alerts and update overlay title/position
@@ -802,6 +813,8 @@ namespace Rotatonator
 
                 // Start log monitoring
                 logMonitor = new LogMonitor(LogFilePathTextBox.Text, rotationManager);
+                logMonitor.PvpEventDetected += OnPvpEventDetected;
+                logMonitor.RaidKillEventDetected += OnRaidKillEventDetected;
                 logMonitor.Start();
 
                 // Save settings
@@ -862,6 +875,7 @@ namespace Rotatonator
         {
             autoDetectTimer?.Stop();
             cloudSyncService.Dispose();
+            discordWebhookService.Dispose();
             StopMonitoring();
             overlayAnchor?.Close();
             base.OnClosed(e);
@@ -925,6 +939,15 @@ namespace Rotatonator
             Dispatcher.Invoke(() =>
             {
                 Console.WriteLine($"[CloudSync] {status}");
+                StatusTextBlock.Text = status;
+                if (status.Contains("fail", StringComparison.OrdinalIgnoreCase) || status.Contains("error", StringComparison.OrdinalIgnoreCase))
+                {
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                }
+                else
+                {
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.DeepSkyBlue;
+                }
             });
         }
 
@@ -962,6 +985,98 @@ namespace Rotatonator
             if (cloudSyncService != null && CloudSyncUrlTextBox != null)
             {
                 cloudSyncService.BaseUrl = CloudSyncUrlTextBox.Text.Trim();
+            }
+            SaveCurrentSettings();
+        }
+
+        private void DiscordWebhookUrlTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            if (discordWebhookService != null && DiscordWebhookUrlTextBox != null)
+            {
+                discordWebhookService.WebhookUrl = DiscordWebhookUrlTextBox.Text.Trim();
+            }
+            SaveCurrentSettings();
+        }
+
+        private void PublishPvpToDiscordCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            if (discordWebhookService != null && PublishPvpToDiscordCheckBox != null)
+            {
+                discordWebhookService.PublishPvp = PublishPvpToDiscordCheckBox.IsChecked == true;
+            }
+            SaveCurrentSettings();
+        }
+
+        private void PublishRaidKillsToDiscordCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            if (discordWebhookService != null && PublishRaidKillsToDiscordCheckBox != null)
+            {
+                discordWebhookService.PublishRaidKills = PublishRaidKillsToDiscordCheckBox.IsChecked == true;
+            }
+            SaveCurrentSettings();
+        }
+
+        private async void TestDiscordWebhookButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(DiscordWebhookUrlTextBox.Text))
+            {
+                MessageBox.Show("Please enter a Discord Webhook URL first.", "Test Webhook", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            TestDiscordWebhookButton.IsEnabled = false;
+            TestDiscordWebhookButton.Content = "Sending...";
+
+            // Ensure service has latest webhook URL from text box
+            discordWebhookService.WebhookUrl = DiscordWebhookUrlTextBox.Text.Trim();
+
+            var (success, error) = await discordWebhookService.SendTestMessageAsync();
+
+            TestDiscordWebhookButton.IsEnabled = true;
+            TestDiscordWebhookButton.Content = "🔔 Test Webhook";
+
+            if (success)
+            {
+                SoundService.PlayRaidKillAlertTones();
+                MessageBox.Show("Discord test message sent successfully! Check your Discord channel.", "Webhook Test", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show($"Failed to send test message to Discord:\n\n{error}", "Webhook Test Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OnPvpEventDetected(object? sender, string line)
+        {
+            if (discordWebhookService.PublishPvp)
+            {
+                SoundService.PlayPvpAlertTone();
+                _ = discordWebhookService.SendPvpEventAsync(line);
+                Dispatcher.InvokeAsync(() =>
+                {
+                    StatusTextBlock.Text = $"[PVP] Event detected and dispatched to Discord ({DateTime.Now:HH:mm:ss})";
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.Yellow;
+                });
+            }
+        }
+
+        private void OnRaidKillEventDetected(object? sender, string line)
+        {
+            if (discordWebhookService.PublishRaidKills)
+            {
+                SoundService.PlayRaidKillAlertTones();
+                _ = discordWebhookService.SendRaidKillEventAsync(line);
+                Dispatcher.InvokeAsync(() =>
+                {
+                    StatusTextBlock.Text = $"[Raid Kill] Event detected and dispatched to Discord ({DateTime.Now:HH:mm:ss})";
+                    StatusTextBlock.Foreground = System.Windows.Media.Brushes.Gold;
+                });
             }
         }
 
@@ -1008,7 +1123,10 @@ namespace Rotatonator
                 EnableDDRSillyMode = DDRSillyModeCheckBox?.IsChecked ?? false,
                 EnableCloudSync = CloudSyncCheckBox?.IsChecked ?? false,
                 CloudSyncUrl = CloudSyncUrlTextBox?.Text?.Trim() ?? "https://rotatonator-web.vercel.app/",
-                PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox?.IsChecked ?? true
+                PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox?.IsChecked ?? true,
+                DiscordWebhookUrl = DiscordWebhookUrlTextBox?.Text?.Trim() ?? "",
+                PublishPvpToDiscord = PublishPvpToDiscordCheckBox?.IsChecked ?? false,
+                PublishRaidKillsToDiscord = PublishRaidKillsToDiscordCheckBox?.IsChecked ?? false
             };
             
             SettingsManager.SaveSettings(settings);

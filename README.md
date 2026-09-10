@@ -14,6 +14,10 @@ A Windows desktop application that enhances the EverQuest experience for healers
 - **Player Turn Warning**: Get advance notice (5 seconds) before your turn
 - **DDR Mode**: Optional graphical visualization with score tracking for casual gameplay
 - **Overlay Customization**: Resizable overlay window to fit your screen layout
+- **Discord Webhook Publishing (v1.6)**: Automatically formats and posts PVP combat events and Guild Raid Kills directly to Discord
+- **Cloud Chain Sync & Web Companion (v1.6)**: Real-time chain synchronization via web API and `rotatonator-web` companion
+- **TTS Voice & Event Alerts (v1.6)**: Natural voice "Chain updated" announcement, plus dedicated audio tones for PVP and raid victories
+- **Advanced Configs Tab (v1.6)**: Dedicated configuration hub for Discord Webhooks and Cloud Sync
 - **Score Management**: Export scores to clipboard for chat or reset with one click
 - **Log Utility Controls**: Live monitoring indicator, log file size display, and one-click archive/truncate for large logs
 
@@ -89,6 +93,23 @@ When any healer casts (detected via this format), the app:
 4. Triggers audio alert when it's your turn
 
 **Important**: You must configure your EverQuest rotation to use the expected prefix format for the application to detect heals correctly.
+
+## v1.6 Features
+
+**Discord Webhook Publishing**:
+- Automatic PVP event detection (`[PVP]`) with formatted Discord announcements, player/guild highlights, and emojis (`⚔️`, `💀`)
+- Automatic deity raid kill detection (`Druzzil Ro tells the guild...` / `has killed`) with boss and zone formatting (`🏆`, `👑`)
+- Built-in "🔔 Test Webhook" button for instant connectivity validation
+- Flexible parsing for direct server announcements as well as in-game `/say` test simulations
+
+**Audio & Voice Alerts**:
+- Clear Windows Text-To-Speech announcing *"Chain updated"* upon chain sync
+- Dedicated 750 Hz short audio tone on PVP detection
+- Ascending two-tone victory fanfare on raid kills
+
+**Cloud Chain Synchronization**:
+- Web companion (`rotatonator-web`) deployed to Vercel
+- Real-time cloud sync: automatic push when exporting to clipboard, and automatic background polling
 
 ## v1.4 Features
 

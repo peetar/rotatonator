@@ -5,7 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - Unreleased
+## [1.6.0] - 2026-09-10
+
+### Added
+- **Discord Webhook Integration**:
+  - Automatically formats and publishes real-time EverQuest `[PVP]` combat and death events to Discord with emoji and player highlights.
+  - Automatically formats and publishes guild raid kill events (`Druzzil Ro tells the guild...` / `has killed`) to Discord with achievement styling.
+  - Added **"🔔 Test Webhook"** button in UI for instant connection testing and error reporting.
+  - Support for in-game `/say` test simulations and graceful fallbacks for non-standard formats.
+- **Dedicated Audio & Voice Alerts**:
+  - Natural Windows Text-To-Speech announcing *"Chain updated"* when rotation updates occur.
+  - Single 750 Hz short audio tone for PVP events.
+  - Ascending dual victory chime (600 Hz -> 900 Hz) for raid boss kills.
+- **Web & Cloud Sync**:
+  - `rotatonator-web` companion application deployed to Vercel.
+  - Serverless `/api/chain` endpoint integrated with Upstash Redis / Vercel KV REST API.
+  - Desktop client automatic push-on-export and 5-second background polling.
+- **Advanced Configs Tab**:
+  - Dedicated 3rd tab in MainWindow organizing Cloud Sync and Discord Webhook configurations.
+
+### Fixed
+- Fixed WPF thread affinity `InvalidOperationException` in `LogMonitor` event triggers by using thread-safe properties and `Dispatcher.InvokeAsync`.
+- Handled stripped quotes and simulated `/say` formats for PVP and raid announcements.
+
+## [1.5.0] - 2026-03-03
 
 ### Added
 - **Append CH Macro Support**: Detects `rotat:<number_in_chain>, <target>` in any log line, allowing it to be appended to existing CH macros or used standalone.

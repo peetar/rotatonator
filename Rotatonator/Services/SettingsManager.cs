@@ -20,6 +20,9 @@ namespace Rotatonator
         public bool EnableCloudSync { get; set; } = false;
         public string CloudSyncUrl { get; set; } = "https://rotatonator-web.vercel.app/";
         public bool PlaySoundOnChainUpdate { get; set; } = true;
+        public string DiscordWebhookUrl { get; set; } = "";
+        public bool PublishPvpToDiscord { get; set; } = false;
+        public bool PublishRaidKillsToDiscord { get; set; } = false;
     }
 
     public static class SettingsManager

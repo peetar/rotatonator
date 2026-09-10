@@ -2,7 +2,7 @@
 # This script safely packages the release build, preventing duplicate runtime folders
 
 param(
-    [string]$Version = "1.5.0"
+    [string]$Version = "1.6.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,7 +83,7 @@ if ($duplicateEntries) {
     Write-Host "WARNING: Found unexpected runtime folder entries in package!" -ForegroundColor Red
     $duplicateEntries | ForEach-Object { Write-Host "  - $($_.FullName)" -ForegroundColor Yellow }
 } else {
-    Write-Host "  ✓ No duplicate runtime folders detected" -ForegroundColor Green
+    Write-Host "  [OK] No duplicate runtime folders detected" -ForegroundColor Green
 }
 
 Write-Host ""

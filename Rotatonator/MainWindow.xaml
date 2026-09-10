@@ -181,18 +181,6 @@
 
                         <Separator Background="#444444" Margin="0,5,0,10"/>
 
-                        <Label Content="Cloud Sync (Web API):" FontWeight="Bold" Margin="0,0,0,2"/>
-                        <Grid Margin="0,0,0,5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Label Content="Server URL:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBox x:Name="CloudSyncUrlTextBox" Grid.Column="1" Text="https://rotatonator-web.vercel.app/" VerticalAlignment="Center" TextChanged="CloudSyncUrlTextBox_TextChanged"/>
-                        </Grid>
-
-                        <Separator Background="#444444" Margin="0,5,0,10"/>
-
                         <Label Content="DDR Visualization Mode:" FontWeight="Bold" Margin="0,0,0,5"/>
                         <CheckBox x:Name="DDRModeCheckBox" Content="Use DDR Visualization (instead of classic overlay)" IsChecked="False" Checked="DDRModeCheckBox_Changed" Unchecked="DDRModeCheckBox_Changed"/>
                         <CheckBox x:Name="DDRSillyModeCheckBox" Content="DDR Silly Mode (background music and sound effects)" IsChecked="False" Margin="20,0,0,8"/>
@@ -222,6 +210,54 @@
                             <TextBox x:Name="HotkeyTextBox" Width="50" Text="1" IsEnabled="{Binding IsChecked, ElementName=AutoCastCheckBox}"/>
                             <Label Content="(key to press for CH spell)" Margin="5,0,0,0"/>
                         </StackPanel>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Tab 3: Advanced Configs -->
+                <TabItem Header="🛠️ Advanced Configs">
+                    <StackPanel Margin="5">
+                        <!-- Cloud Sync API -->
+                        <Label Content="Cloud Sync (Web API):" FontWeight="Bold" Margin="0,0,0,2"/>
+                        <Grid Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Label Content="Server URL:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="CloudSyncUrlTextBox" Grid.Column="1" Text="https://rotatonator-web.vercel.app/" VerticalAlignment="Center" TextChanged="CloudSyncUrlTextBox_TextChanged"/>
+                        </Grid>
+
+                        <Separator Background="#444444" Margin="0,8,0,10"/>
+
+                        <!-- Discord Webhook Integration -->
+                        <Label Content="Discord Webhook Integration:" FontWeight="Bold" Margin="0,0,0,2"/>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="DiscordWebhookUrlTextBox" Text="" VerticalAlignment="Center" TextChanged="DiscordWebhookUrlTextBox_TextChanged" ToolTip="Discord Webhook URL for event publishing"/>
+                            <Button x:Name="TestDiscordWebhookButton" Grid.Column="1" Content="🔔 Test Webhook" Margin="6,0,0,0" Padding="10,4" Click="TestDiscordWebhookButton_Click" Background="#2196F3"/>
+                        </Grid>
+
+                        <CheckBox x:Name="PublishPvpToDiscordCheckBox" 
+                                  Content="Publish PVP events to Discord ([PVP] text in log)" 
+                                  Checked="PublishPvpToDiscordCheckBox_Changed" 
+                                  Unchecked="PublishPvpToDiscordCheckBox_Changed" 
+                                  Margin="0,2,0,4"/>
+                        <CheckBox x:Name="PublishRaidKillsToDiscordCheckBox" 
+                                  Content="Publish raid kills to Discord (Druzzil Ro tells the guild...)" 
+                                  Checked="PublishRaidKillsToDiscordCheckBox_Changed" 
+                                  Unchecked="PublishRaidKillsToDiscordCheckBox_Changed" 
+                                  Margin="0,2,0,8"/>
+
+                        <TextBlock Foreground="#AAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0">
+                            • PVP events trigger a short audio tone and publish to Discord with emojis and highlights.
+                            <LineBreak/>
+                            • Raid kills trigger two victory tones and publish to Discord with achievement styling.
+                            <LineBreak/>
+                            • Graceful fallback ensures custom/unconventional messages still post successfully.
+                        </TextBlock>
                     </StackPanel>
                 </TabItem>
             </TabControl>
