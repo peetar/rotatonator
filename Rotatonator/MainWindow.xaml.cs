@@ -20,6 +20,7 @@ namespace Rotatonator
         private System.Windows.Threading.DispatcherTimer? autoDetectTimer;
         private readonly CloudSyncService cloudSyncService = new CloudSyncService();
         private readonly DiscordWebhookService discordWebhookService = new DiscordWebhookService();
+        private readonly RespawnTimerService respawnTimerService = new RespawnTimerService();
         private bool isInitializing = true;
 
         private void UpdateLogMonitorUI(bool isMonitoring)
@@ -106,7 +107,14 @@ namespace Rotatonator
             cloudSyncService.SyncStatusChanged += OnCloudSyncStatusChanged;
             ChainPrefixTextBox.TextChanged += (s, e) => { cloudSyncService.CurrentPrefix = ChainPrefixTextBox.Text.Trim(); };
 
+            // Wire up respawn timer service
+            discordWebhookService.RespawnTimerService = respawnTimerService;
+            respawnTimerService.DiscordPostCallback = (msg) => discordWebhookService.PostRawToDiscordAsync(msg);
+            respawnTimerService.TimersChanged += (s, e) => UpdateActiveTimersButton();
+            respawnTimerService.TimerExpired += OnRespawnTimerExpired;
+
             isInitializing = false;
+            UpdateActiveTimersButton();
         }
 
         private void LoadSavedSettings()
@@ -190,6 +198,8 @@ namespace Rotatonator
             discordWebhookService.PublishPvp = settings.PublishPvpToDiscord;
             PublishRaidKillsToDiscordCheckBox.IsChecked = settings.PublishRaidKillsToDiscord;
             discordWebhookService.PublishRaidKills = settings.PublishRaidKillsToDiscord;
+            EnableRaidRespawnTimersCheckBox.IsChecked = settings.EnableRaidRespawnTimers;
+            respawnTimerService.IsEnabled = settings.EnableRaidRespawnTimers;
             
             // Load audio alert config
             if (settings.AudioAlerts != null)
@@ -876,6 +886,7 @@ namespace Rotatonator
             autoDetectTimer?.Stop();
             cloudSyncService.Dispose();
             discordWebhookService.Dispose();
+            respawnTimerService.Dispose();
             StopMonitoring();
             overlayAnchor?.Close();
             base.OnClosed(e);
@@ -1052,6 +1063,75 @@ namespace Rotatonator
             }
         }
 
+        private void EnableRaidRespawnTimersCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (isInitializing) return;
+
+            if (respawnTimerService != null && EnableRaidRespawnTimersCheckBox != null)
+            {
+                respawnTimerService.IsEnabled = EnableRaidRespawnTimersCheckBox.IsChecked == true;
+            }
+            SaveCurrentSettings();
+        }
+
+        private void UpdateActiveTimersButton()
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (ViewActiveTimersButton != null && respawnTimerService != null)
+                {
+                    int activeCount = respawnTimerService.GetActiveTimers().Count;
+                    ViewActiveTimersButton.Content = $"⏱️ Active Timers ({activeCount})";
+                }
+            });
+        }
+
+        private void OnRespawnTimerExpired(object? sender, ActiveRespawnTimer timer)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                StatusTextBlock.Text = $"⏰ Timer expired for {timer.MobName}! Follow-up alert dispatched to Discord ({DateTime.Now:HH:mm:ss})";
+                StatusTextBlock.Foreground = System.Windows.Media.Brushes.Gold;
+                UpdateActiveTimersButton();
+            });
+        }
+
+        private void ViewActiveTimersButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new ActiveTimersWindow(respawnTimerService)
+            {
+                Owner = this
+            };
+            window.ShowDialog();
+            UpdateActiveTimersButton();
+        }
+
+        private void TestPvERaidKillButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!discordWebhookService.PublishRaidKills)
+            {
+                MessageBox.Show("Please enable 'Publish raid kills to Discord' first.", "Simulate PvE Raid Kill", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Simulate a standard Druzzil Ro PvE raid kill broadcast for Lady Vox
+            string simulatedLine = "[Sun Nov 02 12:00:00 2025] Druzzil Ro tells the guild, 'Marosu of <Dungeons and Dragons> has killed Lady Vox in Permafrost Caverns!'";
+            OnRaidKillEventDetected(this, simulatedLine);
+        }
+
+        private void TestPvPRaidKillButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!discordWebhookService.PublishPvp)
+            {
+                MessageBox.Show("Please enable 'Publish PVP events to Discord' first.", "Simulate PvP Raid Kill", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Simulate a standard PvP raid kill broadcast for Lady Vox
+            string simulatedLine = "[Sun Nov 02 12:00:00 2025] [PVP] Marosu of <Dungeons and Dragons> has killed Lady Vox in Permafrost Caverns!";
+            OnPvpEventDetected(this, simulatedLine);
+        }
+
         private void OnPvpEventDetected(object? sender, string line)
         {
             if (discordWebhookService.PublishPvp)
@@ -1126,7 +1206,8 @@ namespace Rotatonator
                 PlaySoundOnChainUpdate = PlaySoundOnChainUpdateCheckBox?.IsChecked ?? true,
                 DiscordWebhookUrl = DiscordWebhookUrlTextBox?.Text?.Trim() ?? "",
                 PublishPvpToDiscord = PublishPvpToDiscordCheckBox?.IsChecked ?? false,
-                PublishRaidKillsToDiscord = PublishRaidKillsToDiscordCheckBox?.IsChecked ?? false
+                PublishRaidKillsToDiscord = PublishRaidKillsToDiscordCheckBox?.IsChecked ?? false,
+                EnableRaidRespawnTimers = EnableRaidRespawnTimersCheckBox?.IsChecked ?? true
             };
             
             SettingsManager.SaveSettings(settings);

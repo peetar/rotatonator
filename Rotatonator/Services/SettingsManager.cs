@@ -23,6 +23,7 @@ namespace Rotatonator
         public string DiscordWebhookUrl { get; set; } = "";
         public bool PublishPvpToDiscord { get; set; } = false;
         public bool PublishRaidKillsToDiscord { get; set; } = false;
+        public bool EnableRaidRespawnTimers { get; set; } = true;
     }
 
     public static class SettingsManager

@@ -15,9 +15,10 @@ A Windows desktop application that enhances the EverQuest experience for healers
 - **DDR Mode**: Optional graphical visualization with score tracking for casual gameplay
 - **Overlay Customization**: Resizable overlay window to fit your screen layout
 - **Discord Webhook Publishing (v1.6)**: Automatically formats and posts PVP combat events and Guild Raid Kills directly to Discord
+- **Raid Lockout & PvP Respawn Timers (v1.6.1)**: Automated PvE lockout (exact) and PvP respawn window (0.8x to 1.2x) tracking with persistent storage and follow-up ⏰ Discord alerts
 - **Cloud Chain Sync & Web Companion (v1.6)**: Real-time chain synchronization via web API and `rotatonator-web` companion
 - **TTS Voice & Event Alerts (v1.6)**: Natural voice "Chain updated" announcement, plus dedicated audio tones for PVP and raid victories
-- **Advanced Configs Tab (v1.6)**: Dedicated configuration hub for Discord Webhooks and Cloud Sync
+- **Advanced Configs Tab (v1.6)**: Dedicated configuration hub for Discord Webhooks, Cloud Sync, and Raid Timers
 - **Score Management**: Export scores to clipboard for chat or reset with one click
 - **Log Utility Controls**: Live monitoring indicator, log file size display, and one-click archive/truncate for large logs
 

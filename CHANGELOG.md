@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-09-27
+
+### Added
+- **Raid Lockout & PvP Respawn Timers**:
+  - Automatic raid target detection and tracking for both PvE (`Druzzil Ro tells the guild...`) and PvP (`[PVP] ... has killed ...`) world kill announcements.
+  - Precompiled database of 421 raid bosses extracted directly from the Quarm server database export (`quarm_2025-11-02-07_55.sql`).
+  - **PvE Lockout Tracking**: Exact lockout timers based on server `loot_lockout` / `instance_spawn_timer_override` values (18h, 2.75d, 6.75d) with follow-up `⏰` Discord alert when the lockout expires.
+  - **PvP Respawn Window Tracking**: Automatic calculation of the ±20% ($0.8\times$ to $1.2\times$) PvP respawn window with a single follow-up `⏰` Discord warning fired at the 80% mark when the window opens.
+  - **Persistent Local Storage**: Active timers are automatically saved to `%APPDATA%\Rotatonator\respawn_timers.json` and restored on app startup.
+  - **Active Timers Window (`ActiveTimersWindow`)**: New window displaying all active/completed timers with real-time countdowns, status badges, and action buttons (`⚡ Trigger Discord Alert Now`, `🗑️ Remove Timer`, `🧹 Clear Completed`).
+  - **One-Click Simulation Buttons**: Added "🧪 Simulate PvE Vox Kill" and "🧪 Simulate PvP Vox Kill" buttons in the Advanced Configs tab for instant testing.
+  - Dynamic Discord timestamp tags (`<t:unix:f>`, `<t:unix:R>`) for live countdowns directly in Discord messages.
+
 ## [1.6.0] - 2026-09-10
 
 ### Added

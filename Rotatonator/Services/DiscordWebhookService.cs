@@ -18,6 +18,7 @@ namespace Rotatonator
         public string WebhookUrl { get; set; } = "";
         public bool PublishPvp { get; set; } = false;
         public bool PublishRaidKills { get; set; } = false;
+        public RespawnTimerService? RespawnTimerService { get; set; }
 
         public DiscordWebhookService()
         {
@@ -27,7 +28,7 @@ namespace Rotatonator
             };
             try
             {
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "Rotatonator/1.5 (Windows; EQ Healer Assistant)");
+                httpClient.DefaultRequestHeaders.Add("User-Agent", "Rotatonator/1.6.1 (Windows; EQ Healer Assistant)");
             }
             catch { }
         }
@@ -78,7 +79,7 @@ namespace Rotatonator
             try
             {
                 string cleanLine = StripTimestamp(rawLine);
-                string formattedMessage = FormatPvpMessage(cleanLine);
+                string formattedMessage = FormatPvpMessage(cleanLine, RespawnTimerService);
                 await PostToDiscordAsync(formattedMessage);
             }
             catch (Exception ex)
@@ -100,7 +101,7 @@ namespace Rotatonator
             try
             {
                 string cleanLine = StripTimestamp(rawLine);
-                string formattedMessage = FormatRaidKillMessage(cleanLine);
+                string formattedMessage = FormatRaidKillMessage(cleanLine, RespawnTimerService);
                 await PostToDiscordAsync(formattedMessage);
             }
             catch (Exception ex)
@@ -115,7 +116,7 @@ namespace Rotatonator
             return match.Success ? match.Groups[1].Value.Trim() : line.Trim();
         }
 
-        public static string FormatPvpMessage(string rawLine)
+        public static string FormatPvpMessage(string rawLine, RespawnTimerService? timerService = null)
         {
             string line = rawLine.Trim();
 
@@ -134,6 +135,7 @@ namespace Rotatonator
             // Try matching standard PVP death/kill patterns
             // Example: [PVP] Caedis of <Haven> has died to a grimling deathbringer in combat in Acrylia Caverns!
             // Example: [PVP] Player of <Guild> has been slain by Opponent in Zone!
+            // Example: [PVP] Caedis of <Haven> has killed Lady Vox in Permafrost Caverns!
             var match = Regex.Match(line,
                 @"^\[PVP\]\s+(?<player>[^\s<]+)(?:\s+of\s+<(?<guild>[^>]+)>)?\s+(?<action>has died to|has been slain by|was killed by|has killed)\s+(?<killer>.+?)(?:\s+in combat)?\s+in\s+(?<zone>[^!.]+)(?:!|\.)?$",
                 RegexOptions.IgnoreCase);
@@ -142,12 +144,34 @@ namespace Rotatonator
             {
                 string player = match.Groups["player"].Value;
                 string guild = match.Groups["guild"].Success ? $" `<{match.Groups["guild"].Value}>`" : "";
+                string guildRaw = match.Groups["guild"].Success ? match.Groups["guild"].Value : "";
                 string action = match.Groups["action"].Value;
                 string killer = match.Groups["killer"].Value.Trim();
                 string zone = match.Groups["zone"].Value.Trim();
 
-                string actionEmoji = action.Equals("has killed", StringComparison.OrdinalIgnoreCase) ? "⚔️" : "💀";
+                bool isKill = action.Equals("has killed", StringComparison.OrdinalIgnoreCase);
 
+                // Check if this PvP action is actually a raid boss kill in PvP!
+                if (isKill && timerService != null && RaidTargetDatabase.TryFindTarget(killer, out var raidTarget))
+                {
+                    var timer = timerService.ScheduleRaidKillTimer(raidTarget.Name, zone, player, guildRaw, isPvP: true);
+                    if (timer != null)
+                    {
+                        long openUnix = new DateTimeOffset(timer.ExpirationTimeUtc).ToUnixTimeSeconds();
+                        long closeUnix = timer.PvpWindowCloseTimeUtc.HasValue 
+                            ? new DateTimeOffset(timer.PvpWindowCloseTimeUtc.Value).ToUnixTimeSeconds() 
+                            : openUnix;
+
+                        double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
+                        double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
+                        string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
+
+                        return $"⚔️ **[PVP Raid Kill]** **{player}**{guild} has killed **{raidTarget.Name}** in *{zone}*! 👑🐉\n" +
+                               $"⏳ **PvP Respawn Window:** Opens <t:{openUnix}:f> (<t:{openUnix}:R>) | Closes <t:{closeUnix}:f> (Base: {durStr} | ±20% variance [0.8x - 1.2x])";
+                    }
+                }
+
+                string actionEmoji = isKill ? "⚔️" : "💀";
                 return $"{actionEmoji} **[PVP]** **{player}**{guild} *{action}* **{killer}** in *{zone}*!";
             }
 
@@ -159,7 +183,7 @@ namespace Rotatonator
             return $"⚔️ **[PVP]** {content}";
         }
 
-        public static string FormatRaidKillMessage(string rawLine)
+        public static string FormatRaidKillMessage(string rawLine, RespawnTimerService? timerService = null)
         {
             string line = rawLine.Trim();
             string innerText = line;
@@ -199,14 +223,37 @@ namespace Rotatonator
             {
                 string player = match.Groups["player"].Value;
                 string guild = match.Groups["guild"].Success ? $" `<{match.Groups["guild"].Value}>`" : "";
+                string guildRaw = match.Groups["guild"].Success ? match.Groups["guild"].Value : "";
                 string boss = match.Groups["boss"].Value.Trim();
                 string zone = match.Groups["zone"].Value.Trim();
 
-                return $"🏆 **[Raid Kill]** **{player}**{guild} has slain **{boss}** in *{zone}*! 👑🐉";
+                string msg = $"🏆 **[Raid Kill]** **{player}**{guild} has slain **{boss}** in *{zone}*! 👑🐉";
+
+                // Schedule lockout timer if enabled
+                if (timerService != null)
+                {
+                    var timer = timerService.ScheduleRaidKillTimer(boss, zone, player, guildRaw, isPvP: false);
+                    if (timer != null)
+                    {
+                        long expireUnix = new DateTimeOffset(timer.ExpirationTimeUtc).ToUnixTimeSeconds();
+                        double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
+                        double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
+                        string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
+
+                        msg += $"\n⏳ **Lockout:** *{durStr}* — off lockout <t:{expireUnix}:f> (<t:{expireUnix}:R>)";
+                    }
+                }
+
+                return msg;
             }
 
             // Fallback: strip outer quotes if present and post clean achievement
             return $"🏆 **[Raid Kill]** {innerText}";
+        }
+
+        public async Task PostRawToDiscordAsync(string content)
+        {
+            await PostToDiscordAsync(content);
         }
 
         private async Task PostToDiscordAsync(string content)
