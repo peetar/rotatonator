@@ -256,26 +256,13 @@
                                   Unchecked="EnableRaidRespawnTimersCheckBox_Changed" 
                                   Margin="0,2,0,8"/>
 
-                        <WrapPanel Margin="0,2,0,8">
-                            <Button x:Name="ViewActiveTimersButton" 
-                                    Content="⏱️ Active Timers (0)" 
-                                    Click="ViewActiveTimersButton_Click" 
-                                    Background="#9C27B0" 
-                                    Padding="10,4" 
-                                    Margin="0,0,6,0"/>
-                            <Button x:Name="TestPvERaidKillButton" 
-                                    Content="🧪 Simulate PvE Vox Kill" 
-                                    Click="TestPvERaidKillButton_Click" 
-                                    Background="#673AB7" 
-                                    Padding="10,4" 
-                                    Margin="0,0,6,0"/>
-                            <Button x:Name="TestPvPRaidKillButton" 
-                                    Content="🧪 Simulate PvP Vox Kill" 
-                                    Click="TestPvPRaidKillButton_Click" 
-                                    Background="#E91E63" 
-                                    Padding="10,4" 
-                                    Margin="0,0,0,0"/>
-                        </WrapPanel>
+                        <Button x:Name="ViewActiveTimersButton" 
+                                Content="⏱️ Active Timers (0)" 
+                                Click="ViewActiveTimersButton_Click" 
+                                Background="#9C27B0" 
+                                Padding="10,4" 
+                                HorizontalAlignment="Left"
+                                Margin="0,2,0,8"/>
 
                         <TextBlock Foreground="#AAAAAA" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0">
                             • PVP events trigger a short audio tone and publish to Discord with emojis and highlights.

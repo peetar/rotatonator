@@ -218,40 +218,15 @@ namespace Rotatonator
 
         public static string FormatExpirationMessage(ActiveRespawnTimer timer)
         {
-            long killUnix = new DateTimeOffset(timer.KillTimeUtc).ToUnixTimeSeconds();
-            string killerInfo = string.IsNullOrWhiteSpace(timer.KillerGuild)
-                ? $"**{timer.KillerName}**"
-                : $"**{timer.KillerName}** `<{timer.KillerGuild}>`";
+            string zone = timer.ZoneName.Replace(" (Instanced)", "").Trim();
 
             if (timer.IsPvP)
             {
-                long openUnix = new DateTimeOffset(timer.ExpirationTimeUtc).ToUnixTimeSeconds();
-                string windowCloseInfo = "";
-                if (timer.PvpWindowCloseTimeUtc.HasValue)
-                {
-                    long closeUnix = new DateTimeOffset(timer.PvpWindowCloseTimeUtc.Value).ToUnixTimeSeconds();
-                    windowCloseInfo = $" | Closes at <t:{closeUnix}:f> (<t:{closeUnix}:R>)";
-                }
-
-                double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
-                double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
-                string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
-
-                return $"⏰ **[PvP Respawn Window Open]** **{timer.MobName}** in *{timer.ZoneName}* respawn window has opened!\n" +
-                       $"• **Base Timer:** {durStr}\n" +
-                       $"• **Window:** Opened at <t:{openUnix}:f>{windowCloseInfo}\n" +
-                       $"• **Variance:** ±20% (80% to 120% of base)\n" +
-                       $"• **Killed by:** {killerInfo} on <t:{killUnix}:f>";
+                return $"[PVP] {timer.MobName} in {zone} is in respawn window";
             }
             else
             {
-                double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
-                double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
-                string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
-
-                return $"⏰ **[Raid Lockout Expired]** **{timer.MobName}** in *{timer.ZoneName}* is now off lockout / eligible to respawn!\n" +
-                       $"• **Lockout Duration:** {durStr}\n" +
-                       $"• **Killed by:** {killerInfo} on <t:{killUnix}:f>";
+                return $"[Raid Lockout] {timer.MobName} in {zone} is off lockout";
             }
         }
 

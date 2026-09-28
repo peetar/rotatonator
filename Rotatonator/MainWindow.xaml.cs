@@ -1106,32 +1106,6 @@ namespace Rotatonator
             UpdateActiveTimersButton();
         }
 
-        private void TestPvERaidKillButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!discordWebhookService.PublishRaidKills)
-            {
-                MessageBox.Show("Please enable 'Publish raid kills to Discord' first.", "Simulate PvE Raid Kill", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            // Simulate a standard Druzzil Ro PvE raid kill broadcast for Lady Vox
-            string simulatedLine = "[Sun Nov 02 12:00:00 2025] Druzzil Ro tells the guild, 'Marosu of <Dungeons and Dragons> has killed Lady Vox in Permafrost Caverns!'";
-            OnRaidKillEventDetected(this, simulatedLine);
-        }
-
-        private void TestPvPRaidKillButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!discordWebhookService.PublishPvp)
-            {
-                MessageBox.Show("Please enable 'Publish PVP events to Discord' first.", "Simulate PvP Raid Kill", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            // Simulate a standard PvP raid kill broadcast for Lady Vox
-            string simulatedLine = "[Sun Nov 02 12:00:00 2025] [PVP] Marosu of <Dungeons and Dragons> has killed Lady Vox in Permafrost Caverns!";
-            OnPvpEventDetected(this, simulatedLine);
-        }
-
         private void OnPvpEventDetected(object? sender, string line)
         {
             if (discordWebhookService.PublishPvp)

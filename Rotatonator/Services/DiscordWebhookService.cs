@@ -157,17 +157,12 @@ namespace Rotatonator
                     var timer = timerService.ScheduleRaidKillTimer(raidTarget.Name, zone, player, guildRaw, isPvP: true);
                     if (timer != null)
                     {
-                        long openUnix = new DateTimeOffset(timer.ExpirationTimeUtc).ToUnixTimeSeconds();
-                        long closeUnix = timer.PvpWindowCloseTimeUtc.HasValue 
-                            ? new DateTimeOffset(timer.PvpWindowCloseTimeUtc.Value).ToUnixTimeSeconds() 
-                            : openUnix;
+                        var openLocal = timer.ExpirationTimeUtc.ToLocalTime();
+                        var closeLocal = timer.PvpWindowCloseTimeUtc?.ToLocalTime();
+                        string openStr = openLocal.ToString("M-d H:mm");
+                        string closePart = closeLocal.HasValue ? $" | Closes {closeLocal.Value:M-d H:mm}" : "";
 
-                        double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
-                        double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
-                        string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
-
-                        return $"⚔️ **[PVP Raid Kill]** **{player}**{guild} has killed **{raidTarget.Name}** in *{zone}*! 👑🐉\n" +
-                               $"⏳ **PvP Respawn Window:** Opens <t:{openUnix}:f> (<t:{openUnix}:R>) | Closes <t:{closeUnix}:f> (Base: {durStr} | ±20% variance [0.8x - 1.2x])";
+                        return $"⚔️ **[PVP Raid Kill]** **{player}**{guild} has killed **{raidTarget.Name}** in *{zone}*! 👑🐉 PvP Respawn: {openStr}{closePart}";
                     }
                 }
 
@@ -235,12 +230,8 @@ namespace Rotatonator
                     var timer = timerService.ScheduleRaidKillTimer(boss, zone, player, guildRaw, isPvP: false);
                     if (timer != null)
                     {
-                        long expireUnix = new DateTimeOffset(timer.ExpirationTimeUtc).ToUnixTimeSeconds();
-                        double hours = Math.Round(timer.BaseDurationSeconds / 3600.0, 1);
-                        double days = Math.Round(timer.BaseDurationSeconds / 86400.0, 2);
-                        string durStr = days >= 1.0 ? $"{days} days ({hours}h)" : $"{hours} hours";
-
-                        msg += $"\n⏳ **Lockout:** *{durStr}* — off lockout <t:{expireUnix}:f> (<t:{expireUnix}:R>)";
+                        var expireLocal = timer.ExpirationTimeUtc.ToLocalTime();
+                        msg += $" Off Lockout: {expireLocal:M-d H:mm}";
                     }
                 }
 
